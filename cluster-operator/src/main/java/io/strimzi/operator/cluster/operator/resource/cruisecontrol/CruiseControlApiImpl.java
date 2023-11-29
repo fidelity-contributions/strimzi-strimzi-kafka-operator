@@ -43,9 +43,9 @@ public class CruiseControlApiImpl implements CruiseControlApi {
 
     private final Vertx vertx;
     private final long idleTimeout;
-    private boolean apiSslEnabled;
-    private HTTPHeader authHttpHeader;
-    private PemTrustOptions pto;
+    private final boolean apiSslEnabled;
+    private final HTTPHeader authHttpHeader;
+    private final PemTrustOptions pto;
 
     /**
      * Constructor
@@ -95,8 +95,7 @@ public class CruiseControlApiImpl implements CruiseControlApi {
     protected static HTTPHeader getAuthHttpHeader(boolean apiAuthEnabled, Secret apiSecret) {
         if (apiAuthEnabled) {
             String password = new String(Util.decodeFromSecret(apiSecret, CruiseControl.API_ADMIN_PASSWORD_KEY), StandardCharsets.US_ASCII);
-            HTTPHeader header = generateAuthHttpHeader(CruiseControl.API_ADMIN_NAME, password);
-            return header;
+            return generateAuthHttpHeader(CruiseControl.API_ADMIN_NAME, password);
         } else {
             return null;
         }
@@ -163,7 +162,7 @@ public class CruiseControlApiImpl implements CruiseControlApi {
                                    AsyncResult<HttpClientRequest> request, Promise<CruiseControlRebalanceResponse> result) {
         if (request.succeeded()) {
             if (idleTimeout != HTTP_DEFAULT_IDLE_TIMEOUT_SECONDS) {
-                request.result().setTimeout(idleTimeout * 1000);
+                request.result().idleTimeout(idleTimeout * 1000);
             }
 
             if (userTaskId != null) {
@@ -222,7 +221,7 @@ public class CruiseControlApiImpl implements CruiseControlApi {
                             } else {
                                 result.fail(new CruiseControlRestException(
                                         "Error for request: " + host + ":" + port + path + ". Server returned: " +
-                                                json.toString()));
+                                                json));
                             }
                         });
                     } else {
@@ -239,7 +238,6 @@ public class CruiseControlApiImpl implements CruiseControlApi {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public Future<CruiseControlRebalanceResponse> rebalance(String host, int port, RebalanceOptions options, String userTaskId) {
 
         if (options == null && userTaskId == null) {

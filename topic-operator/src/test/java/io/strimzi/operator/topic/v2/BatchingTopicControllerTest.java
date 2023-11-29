@@ -9,10 +9,13 @@ import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.strimzi.api.kafka.Crds;
 import io.strimzi.api.kafka.model.KafkaTopic;
 import io.strimzi.api.kafka.model.KafkaTopicBuilder;
 import io.strimzi.operator.common.Reconciliation;
+import io.strimzi.operator.topic.v2.metrics.TopicOperatorMetricsHolder;
+import io.strimzi.operator.topic.v2.metrics.TopicOperatorMetricsProvider;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.AlterConfigsResult;
@@ -44,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static io.strimzi.api.kafka.model.KafkaTopic.RESOURCE_KIND;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -67,10 +71,7 @@ class BatchingTopicControllerTest {
 
     private Admin[] admin = new Admin[] {null};
 
-    @BeforeEach
-    public void createKubeClient() {
-        this.client = new KubernetesClientBuilder().build();
-    }
+    private TopicOperatorMetricsHolder metrics;
 
     private static <T> KafkaFuture<T> interruptedFuture() throws ExecutionException, InterruptedException {
         var future = mock(KafkaFuture.class);
@@ -97,12 +98,19 @@ class BatchingTopicControllerTest {
 
     @BeforeAll
     public static void setupKubeCluster() {
-        TopicOperatorTestUtil.setupKubeCluster();
+        TopicOperatorTestUtil.setupKubeCluster(NAMESPACE);
     }
 
     @AfterAll
     public static void teardownKubeCluster() {
-        TopicOperatorTestUtil.teardownKubeCluster2();
+        TopicOperatorTestUtil.teardownKubeCluster2(NAMESPACE);
+    }
+
+    @BeforeEach
+    public void beforeEach() {
+        this.client = new KubernetesClientBuilder().build();
+        TopicOperatorMetricsProvider metricsProvider = new TopicOperatorMetricsProvider(new SimpleMeterRegistry());
+        this.metrics = new TopicOperatorMetricsHolder(RESOURCE_KIND, null, metricsProvider);
     }
 
     @AfterEach
@@ -120,7 +128,7 @@ class BatchingTopicControllerTest {
     }
 
     private void assertOnUpdateThrowsInterruptedException(KubernetesClient client, Admin admin, KafkaTopic kt) throws ExecutionException, InterruptedException {
-        controller = new BatchingTopicController(Map.of("key", "VALUE"), admin, client, true);
+        controller = new BatchingTopicController(Map.of("key", "VALUE"), admin, client, true, metrics, NAMESPACE, false);
         List<ReconcilableTopic> batch = List.of(new ReconcilableTopic(new Reconciliation("test", "KafkaTopic", NAMESPACE, NAME), kt, BatchingTopicController.topicName(kt)));
         assertThrows(InterruptedException.class, () -> controller.onUpdate(batch));
     }

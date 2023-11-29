@@ -4,6 +4,7 @@
  */
 package io.strimzi.systemtest;
 
+import io.fabric8.kubernetes.api.model.LabelSelector;
 import io.strimzi.test.TestUtils;
 
 import java.time.Duration;
@@ -12,7 +13,7 @@ import java.util.Map;
 /**
  * Interface for keep global constants used across system tests.
  */
-public interface Constants {
+public interface TestConstants {
     long TIMEOUT_FOR_RESOURCE_RECOVERY = Duration.ofMinutes(6).toMillis();
     long TIMEOUT_FOR_MIRROR_MAKER_COPY_MESSAGES_BETWEEN_BROKERS = Duration.ofMinutes(7).toMillis();
     long TIMEOUT_FOR_LOG = Duration.ofMinutes(2).toMillis();
@@ -56,6 +57,7 @@ public interface Constants {
     // Keycloak
     long KEYCLOAK_DEPLOYMENT_POLL = Duration.ofSeconds(5).toMillis();
     long KEYCLOAK_DEPLOYMENT_TIMEOUT = Duration.ofMinutes(10).toMillis();
+    long CA_CERT_VALIDITY_DELAY = 10;
 
     // stability count ensures that after some reconciliation we have some additional time
     int GLOBAL_STABILITY_OFFSET_COUNT = 20;
@@ -76,10 +78,10 @@ public interface Constants {
       */
     String ECHO_SINK_CONNECTOR_NAME = "echo-sink-connector";
     String ECHO_SINK_CLASS_NAME = "cz.scholz.kafka.connect.echosink.EchoSinkConnector";
-    String ECHO_SINK_TGZ_URL = "https://github.com/scholzj/echo-sink/archive/1.5.0.tar.gz";
-    String ECHO_SINK_TGZ_CHECKSUM = "5d175575195c00cf7ba85f042c118a4c06ea0aa98202a3d610c5aefb6a28e86d6315f19b4b5edd6c343998325df871bd21232b6544429fccf45cef1f14715d35";
-    String ECHO_SINK_JAR_URL = "https://github.com/scholzj/echo-sink/releases/download/1.5.0/echo-sink-1.5.0.jar";
-    String ECHO_SINK_JAR_CHECKSUM = "87b6512e1c75efdb369a2d7107f40a39e91604eced90cdb8ed064f03c15c2d2a967c36dc7a4698e9910dfac6dd10fb25326b69c581ee0b168b8f786617b6e402";
+    String ECHO_SINK_TGZ_URL = "https://github.com/scholzj/echo-sink/archive/1.6.0.tar.gz";
+    String ECHO_SINK_TGZ_CHECKSUM = "19b8d501ce0627cff2770ee489e59c205ac81263e771aa11b5848c2c289d917cda22f1fc7fc693a91bad63181787d7c48791796f1a33f8f75d594aefebf1e684";
+    String ECHO_SINK_JAR_URL = "https://github.com/scholzj/echo-sink/releases/download/1.6.0/echo-sink-1.6.0.jar";
+    String ECHO_SINK_JAR_CHECKSUM = "3f30d48079578f9f2d0a097ed9a7088773b135dff3dc8e70d87f8422c073adc1181cb41d823c1d1472b0447a337e4877e535daa34ca8ef21d608f8ee6f5e4a9c";
     String ECHO_SINK_FILE_NAME = "echo-sink-test.jar";
     String ECHO_SINK_JAR_WRONG_CHECKSUM = "f1f167902325062efc8c755647bc1b782b2b067a87a6e507ff7a3f6205803220";
 
@@ -96,6 +98,8 @@ public interface Constants {
      */
     String KAFKA_CLIENTS_LABEL_KEY = "user-test-app";
     String KAFKA_ADMIN_CLIENT_LABEL_KEY = "user-test-admin-app";
+    String ADMIN_CLIENT_NAME = "admin-client";
+
     String KAFKA_CLIENTS_LABEL_VALUE = "kafka-clients";
     String KAFKA_ADMIN_CLIENT_LABEL_VALUE = "kafka-clients";
     String KAFKA_BRIDGE_CLIENTS_LABEL_VALUE = "kafka-clients";
@@ -114,6 +118,11 @@ public interface Constants {
      * Deployment labels related constants
      */
     String APP_POD_LABEL = "app";
+
+    /**
+     * Label selectors for our resources
+     */
+    LabelSelector ADMIN_CLIENT_LABEL_SELECTOR = new LabelSelector(null, Map.of(APP_POD_LABEL, ADMIN_CLIENT_NAME));
 
     /**
      * Constants for specific ports
@@ -173,27 +182,26 @@ public interface Constants {
     String METRICS_CONFIG_YAML_NAME = "metrics-config.yml";
     String METRICS_CONFIG_JSON_NAME = "metrics-config.json";
 
-    String PATH_TO_KAFKA_CONNECT_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/connect/kafka-connect.yaml";
-    String PATH_TO_KAFKA_CONNECT_METRICS_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/metrics/kafka-connect-metrics.yaml";
-    String PATH_TO_KAFKA_BRIDGE_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/bridge/kafka-bridge.yaml";
-    String PATH_TO_KAFKA_REBALANCE_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/cruise-control/kafka-rebalance-full.yaml";
-    String PATH_TO_KAFKA_CRUISE_CONTROL_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/cruise-control/kafka-cruise-control.yaml";
-    String PATH_TO_KAFKA_EPHEMERAL_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/kafka/kafka-ephemeral.yaml";
-    String PATH_TO_KAFKA_PERSISTENT_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/kafka/kafka-persistent.yaml";
-    String PATH_TO_KAFKA_CRUISE_CONTROL_METRICS_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/metrics/kafka-cruise-control-metrics.yaml";
-    String PATH_TO_KAFKA_TOPIC_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/topic/kafka-topic.yaml";
-    String PATH_TO_KAFKA_CONNECTOR_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/connect/source-connector.yaml";
-    String PATH_TO_KAFKA_MIRROR_MAKER_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/mirror-maker/kafka-mirror-maker.yaml";
-    String PATH_TO_KAFKA_MIRROR_MAKER_2_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/mirror-maker/kafka-mirror-maker-2.yaml";
-    String PATH_TO_KAFKA_MIRROR_MAKER_2_METRICS_CONFIG = Constants.PATH_TO_PACKAGING_EXAMPLES + "/metrics/kafka-mirror-maker-2-metrics.yaml";
+    String PATH_TO_KAFKA_CONNECT_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/connect/kafka-connect.yaml";
+    String PATH_TO_KAFKA_CONNECT_METRICS_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/metrics/kafka-connect-metrics.yaml";
+    String PATH_TO_KAFKA_BRIDGE_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/bridge/kafka-bridge.yaml";
+    String PATH_TO_KAFKA_REBALANCE_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/cruise-control/kafka-rebalance-full.yaml";
+    String PATH_TO_KAFKA_CRUISE_CONTROL_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/cruise-control/kafka-cruise-control.yaml";
+    String PATH_TO_KAFKA_EPHEMERAL_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/kafka/kafka-ephemeral.yaml";
+    String PATH_TO_KAFKA_PERSISTENT_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/kafka/kafka-persistent.yaml";
+    String PATH_TO_KAFKA_CRUISE_CONTROL_METRICS_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/metrics/kafka-cruise-control-metrics.yaml";
+    String PATH_TO_KAFKA_TOPIC_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/topic/kafka-topic.yaml";
+    String PATH_TO_KAFKA_CONNECTOR_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/connect/source-connector.yaml";
+    String PATH_TO_KAFKA_MIRROR_MAKER_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/mirror-maker/kafka-mirror-maker.yaml";
+    String PATH_TO_KAFKA_MIRROR_MAKER_2_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/mirror-maker/kafka-mirror-maker-2.yaml";
+    String PATH_TO_KAFKA_MIRROR_MAKER_2_METRICS_CONFIG = PATH_TO_PACKAGING_EXAMPLES + "/metrics/kafka-mirror-maker-2-metrics.yaml";
 
     /**
      * Feature gate related constants
      */
     String USE_KRAFT_MODE = "+UseKRaft";
-    String DONT_USE_STABLE_CONNECT_IDENTITIES = "-StableConnectIdentities";
-    String USE_KAFKA_NODE_POOLS = "+KafkaNodePools";
-    String UNIDIRECTIONAL_TOPIC_OPERATOR = "+UnidirectionalTopicOperator";
+    String DONT_USE_KAFKA_NODE_POOLS = "-KafkaNodePools";
+    String DONT_USE_UNIDIRECTIONAL_TOPIC_OPERATOR = "-UnidirectionalTopicOperator";
 
     /**
      * Default value which allows execution of tests with any tags
@@ -410,7 +418,6 @@ public interface Constants {
 
     // main namespace for Cluster Operator deployment
     String CO_NAMESPACE = "co-namespace";
-    String TEST_SUITE_NAMESPACE = "test-suite-namespace";
 
     /**
      * Auxiliary variables for storing data across our tests
@@ -429,23 +436,29 @@ public interface Constants {
     String TEST_NAME_KEY = "TEST_NAME";
     String CLUSTER_KEY = "CLUSTER_NAME";
     String KAFKA_NODE_POOL_KEY = "KAFKA_NODE_POOL";
+    String SOURCE_CLUSTER_KEY = "SOURCE_CLUSTER_NAME";
     String TARGET_CLUSTER_KEY = "TARGET_CLUSTER_NAME";
     String TOPIC_KEY = "TOPIC_NAME";
     String TARGET_TOPIC_KEY = "TARGET_TOPIC_NAME";
+    String MIRRORED_SOURCE_TOPIC_KEY = "MIRRORED_SOURCE_TOPIC_NAME";
     String STREAM_TOPIC_KEY = "STREAM_TOPIC_NAME";
     String SCRAPER_KEY = "SCRAPER_NAME";
     String PRODUCER_KEY = "PRODUCER_NAME";
     String CONSUMER_KEY = "CONSUMER_NAME";
     String ADMIN_KEY = "ADMIN_NAME";
     String USER_NAME_KEY = "USER_NAME";
+    String SOURCE_USER_NAME_KEY = "SOURCE_USER_NAME";
+    String TARGET_USER_NAME_KEY = "TARGET_USER_NAME";
     String KAFKA_USER_NAME_KEY = "KAFKA_USER_NAME";
     String ENTITY_OPERATOR_NAME_KEY = "ENTITY_OPERATOR_NAME";
     String KAFKA_STATEFULSET_NAME_KEY = "KAFKA_STATEFULSET_NAME";
     String ZOOKEEPER_STATEFULSET_NAME_KEY = "ZOOKEEPER_STATEFULSET_NAME";
     String SCRAPER_POD_KEY = "SCRAPER_POD_NAME";
     String KAFKA_TRACING_CLIENT_KEY = "KAFKA_TRACING_CLIENT";
-    String KAFKA_SELECTOR = "KAFKA_SELECTOR";
-    String ZOOKEEPER_SELECTOR = "ZOOKEEPER_SELECTOR";
+    String KAFKA_SELECTOR_KEY = "KAFKA_SELECTOR";
+    String ZOOKEEPER_SELECTOR_KEY = "ZOOKEEPER_SELECTOR";
+    String KAFKA_CONNECT_SELECTOR_KEY = "KAFKA_CONNECT_SELECTOR";
+    String MM2_SELECTOR_KEY = "MM2_SELECTOR";
     String MESSAGE_COUNT_KEY = "MESSAGE_COUNT";
     String TEST_EXECUTION_START_TIME_KEY = "TEST_EXECUTION_START_TIME";
 

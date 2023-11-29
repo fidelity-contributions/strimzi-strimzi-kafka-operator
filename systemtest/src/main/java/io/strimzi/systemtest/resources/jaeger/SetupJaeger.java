@@ -6,7 +6,8 @@ package io.strimzi.systemtest.resources.jaeger;
 
 import io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicy;
 import io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicyBuilder;
-import io.strimzi.systemtest.Constants;
+import io.strimzi.systemtest.TestConstants;
+import io.strimzi.systemtest.Environment;
 import io.strimzi.systemtest.resources.ResourceItem;
 import io.strimzi.systemtest.resources.ResourceManager;
 import io.strimzi.systemtest.utils.StUtils;
@@ -23,8 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Stack;
 
-import static io.strimzi.systemtest.Constants.JAEGER_DEPLOYMENT_POLL;
-import static io.strimzi.systemtest.Constants.JAEGER_DEPLOYMENT_TIMEOUT;
+import static io.strimzi.systemtest.TestConstants.JAEGER_DEPLOYMENT_POLL;
+import static io.strimzi.systemtest.TestConstants.JAEGER_DEPLOYMENT_TIMEOUT;
 import static io.strimzi.systemtest.tracing.TracingConstants.CERT_MANAGER_CA_INJECTOR_DEPLOYMENT;
 import static io.strimzi.systemtest.tracing.TracingConstants.CERT_MANAGER_DEPLOYMENT;
 import static io.strimzi.systemtest.tracing.TracingConstants.CERT_MANAGER_NAMESPACE;
@@ -49,7 +50,7 @@ public class SetupJaeger {
      * Delete Jaeger instance
      */
     private static void deleteJaeger(String yamlContent) {
-        cmdKubeClient().namespace(Constants.TEST_SUITE_NAMESPACE).deleteContent(yamlContent);
+        cmdKubeClient().namespace(Environment.TEST_SUITE_NAMESPACE).deleteContent(yamlContent);
     }
 
     /**
@@ -113,10 +114,10 @@ public class SetupJaeger {
     private static void deployJaegerContent(ExtensionContext extensionContext) {
         TestUtils.waitFor("Jaeger deploy", JAEGER_DEPLOYMENT_POLL, JAEGER_DEPLOYMENT_TIMEOUT, () -> {
             try {
-                String jaegerOperator = Files.readString(Paths.get(JAEGER_OPERATOR_PATH)).replace("observability", Constants.TEST_SUITE_NAMESPACE);
+                String jaegerOperator = Files.readString(Paths.get(JAEGER_OPERATOR_PATH)).replace("observability", Environment.TEST_SUITE_NAMESPACE);
 
                 LOGGER.info("Creating Jaeger Operator (and needed resources) from {}", JAEGER_OPERATOR_PATH);
-                cmdKubeClient(Constants.TEST_SUITE_NAMESPACE).applyContent(jaegerOperator);
+                cmdKubeClient(Environment.TEST_SUITE_NAMESPACE).applyContent(jaegerOperator);
                 ResourceManager.STORED_RESOURCES.get(extensionContext.getDisplayName()).push(new ResourceItem<>(() -> deleteJaeger(jaegerOperator)));
 
                 return true;
@@ -125,7 +126,7 @@ public class SetupJaeger {
                 return false;
             }
         });
-        DeploymentUtils.waitForDeploymentAndPodsReady(Constants.TEST_SUITE_NAMESPACE, JAEGER_OPERATOR_DEPLOYMENT_NAME, 1);
+        DeploymentUtils.waitForDeploymentAndPodsReady(Environment.TEST_SUITE_NAMESPACE, JAEGER_OPERATOR_DEPLOYMENT_NAME, 1);
     }
 
     /**
@@ -139,10 +140,10 @@ public class SetupJaeger {
 
         NetworkPolicy networkPolicy = new NetworkPolicyBuilder()
             .withApiVersion("networking.k8s.io/v1")
-            .withKind(Constants.NETWORK_POLICY)
+            .withKind(TestConstants.NETWORK_POLICY)
             .withNewMetadata()
                 .withName("jaeger-allow")
-                .withNamespace(Constants.TEST_SUITE_NAMESPACE)
+                .withNamespace(Environment.TEST_SUITE_NAMESPACE)
             .endMetadata()
             .withNewSpec()
                 .addNewIngress()

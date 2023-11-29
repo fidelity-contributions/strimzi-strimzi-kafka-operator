@@ -44,14 +44,11 @@ public class ZookeeperScaler implements AutoCloseable {
     private final long operationTimeoutMs;
     private final int zkAdminSessionTimeoutMs;
 
-    private final Secret clusterCaCertSecret;
-    private final Secret coKeySecret;
-
     private final String trustStorePassword;
-    private File trustStoreFile;
+    private final File trustStoreFile;
 
     private final String keyStorePassword;
-    private File keyStoreFile;
+    private final File keyStoreFile;
 
     private final Reconciliation reconciliation;
 
@@ -82,8 +79,6 @@ public class ZookeeperScaler implements AutoCloseable {
         this.zkNodeAddress = zkNodeAddress;
         this.operationTimeoutMs = operationTimeoutMs;
         this.zkAdminSessionTimeoutMs = zkAdminSessionTimeoutMs;
-        this.clusterCaCertSecret = clusterCaCertSecret;
-        this.coKeySecret = coKeySecret;
 
         // Setup truststore from PEM file in cluster CA secret
         // We cannot use P12 because of custom CAs which for simplicity provide only PEM
@@ -209,21 +204,17 @@ public class ZookeeperScaler implements AutoCloseable {
      * @return  Future containing Map with the current Zookeeper configuration
      */
     private Future<Map<String, String>> getCurrentConfig(ZooKeeperAdmin zkAdmin)    {
-        Promise<Map<String, String>> configPromise = Promise.promise();
-
-        vertx.executeBlocking(promise -> {
+        return vertx.executeBlocking(() -> {
             try {
                 byte[] config = zkAdmin.getConfig(false, null);
                 Map<String, String> servers = parseConfig(config);
                 LOGGER.debugCr(reconciliation, "Current Zookeeper configuration is {}", servers);
-                promise.complete(servers);
+                return servers;
             } catch (KeeperException | InterruptedException e)    {
                 LOGGER.warnCr(reconciliation, "Failed to get current Zookeeper server configuration", e);
-                promise.fail(new ZookeeperScalingException("Failed to get current Zookeeper server configuration", e));
+                throw new ZookeeperScalingException("Failed to get current Zookeeper server configuration", e);
             }
-        }, false, configPromise);
-
-        return configPromise.future();
+        }, false);
     }
 
     /**
@@ -233,57 +224,47 @@ public class ZookeeperScaler implements AutoCloseable {
      * @return              Future with the updated configuration
      */
     private Future<Map<String, String>> updateConfig(ZooKeeperAdmin zkAdmin, Map<String, String> newServers)    {
-        Promise<Map<String, String>> configPromise = Promise.promise();
-
-        vertx.executeBlocking(promise -> {
+        return vertx.executeBlocking(() -> {
             try {
                 LOGGER.debugCr(reconciliation, "Updating Zookeeper configuration to {}", newServers);
                 byte[] newConfig = zkAdmin.reconfigure(null, null, serversMapToList(newServers), -1, null);
                 Map<String, String> servers = parseConfig(newConfig);
 
                 LOGGER.debugCr(reconciliation, "New Zookeeper configuration is {}", servers);
-                promise.complete(servers);
+                return servers;
             } catch (KeeperException | InterruptedException e)    {
                 LOGGER.warnCr(reconciliation, "Failed to update Zookeeper server configuration", e);
-                promise.fail(new ZookeeperScalingException("Failed to update Zookeeper server configuration", e));
+                throw new ZookeeperScalingException("Failed to update Zookeeper server configuration", e);
             }
-        }, false, configPromise);
-
-        return configPromise.future();
+        }, false);
     }
 
     /**
      * Closes the Zookeeper connection
      */
     private Future<Void> closeConnection(ZooKeeperAdmin zkAdmin) {
-        Promise<Void> closePromise = Promise.promise();
-
         if (zkAdmin != null) {
-            vertx.executeBlocking(promise -> {
+            return vertx.executeBlocking(() -> {
                 try {
                     zkAdmin.close((int) operationTimeoutMs);
-                    promise.complete();
+                    return null;
                 } catch (Exception e) {
                     LOGGER.warnCr(reconciliation, "Failed to close the ZooKeeperAdmin", e);
-                    promise.fail(e);
+                    throw e;
                 }
-            }, false, closePromise);
+            }, false);
         } else {
-            closePromise.complete();
+            return Future.succeededFuture();
         }
-
-        return closePromise.future();
     }
 
     /**
      * Generates the TLS configuration for Zookeeper.
      *
-     * @return
+     * @return  A future with the ZooKeeper Client Configuration
      */
     private Future<ZKClientConfig> getClientConfig()  {
-        Promise<ZKClientConfig> configPromise = Promise.promise();
-
-        vertx.executeBlocking(promise -> {
+        return vertx.executeBlocking(() -> {
             try {
                 ZKClientConfig clientConfig = new ZKClientConfig();
 
@@ -298,14 +279,12 @@ public class ZookeeperScaler implements AutoCloseable {
                 clientConfig.setProperty("zookeeper.ssl.keyStore.type", "PKCS12");
                 clientConfig.setProperty("zookeeper.request.timeout", String.valueOf(operationTimeoutMs));
 
-                promise.complete(clientConfig);
+                return clientConfig;
             } catch (Exception e)    {
                 LOGGER.warnCr(reconciliation, "Failed to create Zookeeper client configuration", e);
-                promise.fail(new ZookeeperScalingException("Failed to create Zookeeper client configuration", e));
+                throw new ZookeeperScalingException("Failed to create Zookeeper client configuration", e);
             }
-        }, false, configPromise);
-
-        return configPromise.future();
+        }, false);
     }
 
     /**

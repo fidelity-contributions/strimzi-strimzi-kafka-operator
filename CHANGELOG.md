@@ -1,15 +1,65 @@
 # CHANGELOG
 
+## 0.39.0
+
+* The `StableConnectIdentities` feature gate moves to GA stage and is now permanently enabled without the possibility to disable it.
+  All Connect and Mirror Maker 2 operands will now use StrimziPodSets.
+* The `KafkaNodePools` feature gate moves to beta stage and is enabled by default.
+  If needed, `KafkaNodePools` can be disabled in the feature gates configuration in the Cluster Operator.
+* The `UnidirectionalTopicOperator` feature gate moves to beta stage and is enabled by default.
+  If needed, `UnidirectionalTopicOperator` can be disabled in the feature gates configuration in the Cluster Operator.
+* Improved Kafka Connect metrics and dashboard example files
+* Allow specifying and managing KRaft metadata version
+* Add support for KRaft to KRaft upgrades (Apache Kafka upgrades for the KRaft based clusters)
+
+### Changes, deprecations and removals
+
+* The `StableConnectIdentities` feature gate moves to GA stage and cannot be disabled anymore.
+  When using Connect or Mirror Maker 2 operands, direct downgrade to Strimzi versions older than 0.34 is not supported anymore.
+  You have to first downgrade to Strimzi version between 0.34 to 0.38, disable the `StableConnectIdentities` feature gate, and only then downgrade to an older Strimzi version.
+* Strimzi 0.39.0 (and any of its patch releases) is the last Strimzi version with support for Kubernetes 1.21 and 1.22.
+  From Strimzi 0.40.0 on, we will support only Kubernetes 1.23 and newer.
+
 ## 0.38.0
 
+* Add support for Apache Kafka 3.6.0 and drop support for 3.4.0 and 3.4.1
 * Sign containers using `cosign`
+* Generate and publish Software Bill of Materials (SBOMs) of Strimzi containers
 * Add support for stopping connectors according to [Strimzi Proposal #54](https://github.com/strimzi/proposals/blob/main/054-stopping-kafka-connect-connectors.md)
+* Allow manual rolling of Kafka Connect and Kafka Mirror Maker 2 pods using the `strimzi.io/manual-rolling-update` annotation (supported only when `StableConnectIdentities` feature gate is enabled) 
+* Make sure brokers are empty before scaling them down
+* Update Cruise Control to 2.5.128
+* Add support for pausing reconciliations to the Unidirectional Topic Operator
+* Allow running ZooKeeper and KRaft based Apache Kafka clusters in parallel when the `+UseKRaft` feature gate is enabled
+* Add support for metrics to the Unidirectional Topic Operator
+* Added the `includeAcceptHeader` option to OAuth client and listener authentication configuration and to `keycloak` authorization. If set to `false` it turns off sending of `Accept` header when communicating with OAuth / OIDC authorization server. This feature is enabled by the updated Strimzi Kafka OAuth library (0.14.0).
+* Update HTTP bridge to latest 0.27.0 release
 
 ### Changes, deprecations and removals
 
 * The `Kafka.KafkaStatus.ListenerStatus.type` property has been deprecated for a long time, and now we do not use it anymore.
   The current plan is to completely remove this property in the next schema version.
   If needed, you can use the `Kafka.KafkaStatus.ListenerStatus.name` property, which has the same value.
+* Added `strimzi.io/kraft` annotation to be applied on `Kafka` custom resource, together with the `+UseKRaft` feature gate enabled, to declare a ZooKeeper or KRaft based cluster.
+  * if `enabled` the `Kafka` resource defines a KRaft-based cluster.
+  * if `disabled`, missing or any other value, the operator handle the `Kafka` resource as a ZooKeeper-based cluster.
+* The `io.strimzi.kafka.EnvVarConfigProvider` configuration provider is now deprecated and will be removed in Strimzi 0.42. Users should migrate to Kafka's implementation, `org.apache.kafka.common.config.provider.EnvVarConfigProvider`, which is a drop-in replacement.
+  For example:
+  ```yaml
+  config:
+    # ...
+    config.providers: env
+    config.providers.env.class: io.strimzi.kafka.EnvVarConfigProvider
+    # ...
+  ```
+  becomes
+  ```yaml
+  config:
+    # ...
+    config.providers: env
+    config.providers.env.class: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+    # ...
+  ```
 
 ## 0.37.0
 

@@ -48,6 +48,17 @@ Support for `StatefulSets` has been removed and Strimzi is now always using `Str
 IMPORTANT: With the `UseStrimziPodSets` feature gate permanently enabled, it is no longer possible to downgrade directly from Strimzi 0.35 and newer to Strimzi 0.27 or earlier.
 You have to first downgrade through one of the Strimzi versions in-between, disable the `UseStrimziPodSets` feature gate, and then downgrade to Strimzi 0.27 or earlier.
 
+[id='ref-operator-stable-connect-identities-feature-gate-{context}']
+== StableConnectIdentities feature gate
+
+The `StableConnectIdentities` feature gate has moved to GA, which means it is now permanently enabled and cannot be disabled.
+The `StrimziPodSet` resources are now always used to manage Kafka Connect and Kafka MirrorMaker 2 pods instead of using Kubernetes `Deployment` resources.
+`StrimziPodSet` resources give the pods stable names and stable addresses, which do not change during rolling upgrades.
+This helps to minimize the number of rebalances of connector tasks.
+
+IMPORTANT: With the `StableConnectIdentities` feature gate permanently enabled, it is no longer possible to downgrade directly from Strimzi 0.39 and newer to Strimzi 0.33 or earlier.
+You have to first downgrade through one of the Strimzi versions in-between, disable the `StableConnectIdentities` feature gate, and then downgrade to Strimzi 0.33 or earlier.
+
 [id='ref-operator-use-kraft-feature-gate-{context}']
 == (Preview) UseKRaft feature gate
 
@@ -67,8 +78,9 @@ IMPORTANT: **KRaft mode is not ready for production in Apache Kafka or in Strimz
 Enabling the `UseKRaft` feature gate requires the `KafkaNodePools` feature gate to be enabled as well.
 To deploy a Kafka cluster in KRaft mode, you must use the `KafkaNodePool` resources.
 For more details and examples, see xref:deploying-kafka-node-pools-{context}[].
+The `Kafka` custom resource using KRaft mode must also have the annotation `strimzi.io/kraft: enabled`.
 
-When the `UseKRaft` feature gate is enabled, the Kafka cluster is deployed without ZooKeeper.
+When the `UseKRaft` feature gate is enabled and such annotation is set, the Kafka cluster is deployed without ZooKeeper.
 *The `.spec.zookeeper` properties in the `Kafka` custom resource are ignored, but still need to be present.*
 The `UseKRaft` feature gate provides an API that configures Kafka cluster nodes and their roles.
 The API is still in development and is expected to change before the KRaft mode is production-ready.
@@ -80,32 +92,19 @@ Currently, the KRaft mode in Strimzi has the following major limitations:
 * Upgrades and downgrades of Apache Kafka versions or the Strimzi operator are not supported.
   Users might need to delete the cluster, upgrade the operator and deploy a new Kafka cluster.
 * Only the _Unidirectional_ Topic Operator is supported in KRaft mode.
-  You can enable it using the `UnidirectionalTopicOperator` feature gate.
   The _Bidirectional_ Topic Operator is not supported and when the `UnidirectionalTopicOperator` feature gate is not enabled, the `spec.entityOperator.topicOperator` property *must be removed* from the `Kafka` custom resource.
 * JBOD storage is not supported. 
   The `type: jbod` storage can be used, but the JBOD array can contain only one disk.
 
 .Enabling the UseKRaft feature gate
-To enable the `UseKRaft` feature gate, specify `+UseKRaft,+KafkaNodePools` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.
-
-[id='ref-operator-stable-connect-identities-feature-gate-{context}']
-== StableConnectIdentities feature gate
-
-The `StableConnectIdentities` feature gate has a default state of _enabled_.
-
-The `StableConnectIdentities` feature gate uses `StrimziPodSet` resources to manage Kafka Connect and Kafka MirrorMaker 2 pods instead of using Kubernetes `Deployment` resources.
-`StrimziPodSets` give the pods stable names and stable addresses, which do not change during rolling upgrades.
-This helps to minimize the number of rebalances of connector tasks.
-
-.Disabling the `StableConnectIdentities` feature gate
-To disable the `StableConnectIdentities` feature gate, specify `-StableConnectIdentities` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.
-
-IMPORTANT: The `StableConnectIdentities` feature gate must be disabled when downgrading to Strimzi 0.33 and earlier versions.
+To enable the `UseKRaft` feature gate, specify `+UseKRaft` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.
+The `Kafka` custom resource using KRaft mode must also have the annotation `strimzi.io/kraft: enabled`.
+If this annotation is set to `disabled` or any other value, or if it is missing, the operator handles the `Kafka` custom resource as if it is using ZooKeeper for cluster management.
 
 [id='ref-operator-kafka-node-pools-feature-gate-{context}']
 == (Preview) KafkaNodePools feature gate
 
-The `KafkaNodePools` feature gate has a default state of _disabled_.
+The `KafkaNodePools` feature gate has a default state of _enabled_.
 
 The `KafkaNodePools` feature gate introduces a new `KafkaNodePool` custom resource that enables the configuration of different _pools_ of Apache Kafka nodes.
 
@@ -123,15 +122,19 @@ The label must be set to the name of the `Kafka` custom resource.
 
 Examples of the `KafkaNodePool` resources can be found in the xref:config-examples-{context}[example configuration files] provided by Strimzi.
 
-.Enabling the KafkaNodePools feature gate
+.Disabling the KafkaNodePools feature gate
 
-To enable the `KafkaNodePools` feature gate, specify `+KafkaNodePools` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.
+To disable the `KafkaNodePools` feature gate, specify `-KafkaNodePools` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.
 The `Kafka` custom resource using the node pools must also have the annotation `strimzi.io/node-pools: enabled`.
 
-[id='ref-operator-unidirectional-topic-operator-feature-gate-{context}']
-== (Preview) UnidirectionalTopicOperator feature gate
+.Downgrading from KafkaNodePools
 
-The `UnidirectionalTopicOperator` feature gate has a default state of _disabled_.
+If your cluster already uses `KafkaNodePool` custom resources, and you wish to downgrade to an older version of Strimzi that does not support them or with the `KafkaNodePools` feature gate disabled, you must first migrate from `KafkaNodePool` custom resources to managing Kafka nodes using only `Kafka` custom resources.
+
+[id='ref-operator-unidirectional-topic-operator-feature-gate-{context}']
+== UnidirectionalTopicOperator feature gate
+
+The `UnidirectionalTopicOperator` feature gate has a default state of _enabled_.
 
 The `UnidirectionalTopicOperator` feature gate introduces a unidirectional topic management mode for creating Kafka topics using the `KafkaTopic` resource.
 Unidirectional mode is compatible with using KRaft for cluster management.
@@ -139,7 +142,6 @@ With unidirectional mode, you create Kafka topics using the `KafkaTopic` resourc
 Any configuration changes to a topic outside the `KafkaTopic` resource are reverted.
 For more information on topic management, see xref:ref-operator-topic-str[].
 
-.Enabling the UnidirectionalTopicOperator feature gate
+.Disabling the `UnidirectionalTopicOperator` feature gate
 
-To enable the `UnidirectionalTopicOperator` feature gate, specify `+UnidirectionalTopicOperator` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.
-For the `KafkaTopic` custom resource to use this feature, the `strimzi.io/managed` annotation is set to `true` by default. 
+To disable the `UnidirectionalTopicOperator` feature gate, specify `-UnidirectionalTopicOperator` in the `STRIMZI_FEATURE_GATES` environment variable in the Cluster Operator configuration.

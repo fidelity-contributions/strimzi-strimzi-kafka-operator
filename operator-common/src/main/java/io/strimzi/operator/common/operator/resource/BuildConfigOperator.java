@@ -37,7 +37,7 @@ public class BuildConfigOperator extends AbstractNamespacedResourceOperator<Open
     @Override
     protected Future<ReconcileResult<BuildConfig>> internalUpdate(Reconciliation reconciliation, String namespace, String name, BuildConfig current, BuildConfig desired) {
         desired.getSpec().setTriggers(current.getSpec().getTriggers());
-        // Cascading needs to be set to false to make sure the Builds are not deleted during reconciliation
+        // Cascading needs to be set to false in order to make sure the Builds are not deleted during reconciliation
         return super.internalUpdate(reconciliation, namespace, name, current, desired);
     }
 
@@ -45,12 +45,12 @@ public class BuildConfigOperator extends AbstractNamespacedResourceOperator<Open
      * Asynchronously deletes the resource in the given {@code namespace} with the given {@code name},
      * returning a Future which completes once the {@code delete} returns.
      *
-     * This is n override for BuildConfigs because the {@code selfClosingWatch} used by {@code AbstractResourceoperator} does not work for them.
+     * This is n override for BuildConfigs because the {@code selfClosingWatch} used by {@code AbstractResourceOperator} does not work for them.
      *
      * @param reconciliation The reconciliation
      * @param namespace Namespace of the resource which should be deleted
      * @param name Name of the resource which should be deleted
-     * @param cascading Defines whether the delete should be cascading or not (e.g. whether a STS deletion should delete pods etc.)
+     * @param cascading Defines whether the deletion should be cascading or not (e.g. whether an STS deletion should delete pods etc.)
      *
      * @return A future which will be completed on the context thread once the resource has been deleted.
      */
@@ -71,13 +71,6 @@ public class BuildConfigOperator extends AbstractNamespacedResourceOperator<Open
      * @return              The Build which was created
      */
     public Future<Build> startBuild(String namespace, String name, BuildRequest buildRequest)   {
-        return resourceSupport.executeBlocking(
-            blockingFuture -> {
-                try {
-                    blockingFuture.complete(operation().inNamespace(namespace).withName(name).instantiate(buildRequest));
-                } catch (Throwable t) {
-                    blockingFuture.fail(t);
-                }
-            });
+        return resourceSupport.executeBlocking(() -> operation().inNamespace(namespace).withName(name).instantiate(buildRequest));
     }
 }

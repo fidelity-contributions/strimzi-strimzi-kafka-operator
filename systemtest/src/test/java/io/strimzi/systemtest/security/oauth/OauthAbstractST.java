@@ -10,7 +10,9 @@ import io.strimzi.api.kafka.model.listener.arraylistener.GenericKafkaListener;
 import io.strimzi.api.kafka.model.listener.arraylistener.GenericKafkaListenerBuilder;
 import io.strimzi.api.kafka.model.listener.arraylistener.KafkaListenerType;
 import io.strimzi.systemtest.AbstractST;
-import io.strimzi.systemtest.Constants;
+import io.strimzi.systemtest.TestConstants;
+import io.strimzi.systemtest.Environment;
+import io.strimzi.systemtest.annotations.IPv6NotSupported;
 import io.strimzi.systemtest.enums.DefaultNetworkPolicy;
 import io.strimzi.systemtest.keycloak.KeycloakInstance;
 import io.strimzi.systemtest.resources.keycloak.SetupKeycloak;
@@ -33,9 +35,9 @@ import java.util.stream.Collectors;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.strimzi.systemtest.Constants.ARM64_UNSUPPORTED;
-import static io.strimzi.systemtest.Constants.OAUTH;
-import static io.strimzi.systemtest.Constants.REGRESSION;
+import static io.strimzi.systemtest.TestConstants.ARM64_UNSUPPORTED;
+import static io.strimzi.systemtest.TestConstants.OAUTH;
+import static io.strimzi.systemtest.TestConstants.REGRESSION;
 
 import static io.strimzi.test.k8s.KubeClusterResource.kubeClient;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,6 +45,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 @Tag(OAUTH)
 @Tag(REGRESSION)
 @Tag(ARM64_UNSUPPORTED)
+@IPv6NotSupported("Keycloak does not support IPv6 single-stack - https://github.com/keycloak/keycloak/issues/21277")
 public class OauthAbstractST extends AbstractST {
 
     protected static final Logger LOGGER = LogManager.getLogger(OauthAbstractST.class);
@@ -105,7 +108,7 @@ public class OauthAbstractST extends AbstractST {
 
     protected static final Function<KeycloakInstance, GenericKafkaListener> BUILD_OAUTH_TLS_LISTENER = (keycloakInstance) -> {
         return new GenericKafkaListenerBuilder()
-            .withName(Constants.TLS_LISTENER_DEFAULT_NAME)
+            .withName(TestConstants.TLS_LISTENER_DEFAULT_NAME)
             .withPort(9093)
             .withType(KafkaListenerType.INTERNAL)
             .withTls(true)
@@ -129,19 +132,19 @@ public class OauthAbstractST extends AbstractST {
         clusterOperator.defaultInstallation(extensionContext).createInstallation().runInstallation();
 
         resourceManager.createResourceWithWait(extensionContext, NetworkPolicyTemplates.applyDefaultNetworkPolicy(extensionContext, keycloakNamespace, DefaultNetworkPolicy.DEFAULT_TO_ALLOW));
-        resourceManager.createResourceWithoutWait(extensionContext, ScraperTemplates.scraperPod(Constants.TEST_SUITE_NAMESPACE, Constants.SCRAPER_NAME).build());
+        resourceManager.createResourceWithoutWait(extensionContext, ScraperTemplates.scraperPod(Environment.TEST_SUITE_NAMESPACE, TestConstants.SCRAPER_NAME).build());
 
         LOGGER.info("Deploying keycloak");
 
         // this is need for cluster-wide OLM (creating `infra-namespace` for Keycloak)
         // Keycloak do not support cluster-wide namespace, and thus we need it to deploy in non-OLM cluster wide namespace
         // (f.e., our `infra-namespace`)
-        if (kubeClient().getNamespace(Constants.TEST_SUITE_NAMESPACE) == null) {
-            cluster.createNamespace(CollectorElement.createCollectorElement(extensionContext.getRequiredTestClass().getName()), Constants.TEST_SUITE_NAMESPACE);
-            StUtils.copyImagePullSecrets(Constants.TEST_SUITE_NAMESPACE);
+        if (kubeClient().getNamespace(Environment.TEST_SUITE_NAMESPACE) == null) {
+            cluster.createNamespace(CollectorElement.createCollectorElement(extensionContext.getRequiredTestClass().getName()), Environment.TEST_SUITE_NAMESPACE);
+            StUtils.copyImagePullSecrets(Environment.TEST_SUITE_NAMESPACE);
         }
 
-        SetupKeycloak.deployKeycloakOperator(extensionContext, Constants.TEST_SUITE_NAMESPACE, keycloakNamespace);
+        SetupKeycloak.deployKeycloakOperator(extensionContext, Environment.TEST_SUITE_NAMESPACE, keycloakNamespace);
 
         keycloakInstance = SetupKeycloak.deployKeycloakAndImportRealms(extensionContext, keycloakNamespace);
 

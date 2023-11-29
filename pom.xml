@@ -5,7 +5,7 @@
     <groupId>io.strimzi</groupId>
     <artifactId>strimzi</artifactId>
     <packaging>pom</packaging>
-    <version>0.38.0-SNAPSHOT</version>
+    <version>0.39.0-SNAPSHOT</version>
 
     <licenses>
         <license>
@@ -100,8 +100,8 @@
 
         <!-- Maven plugin versions -->
         <maven.compiler.version>3.10.1</maven.compiler.version>
-        <maven.surefire.version>3.0.0-M7</maven.surefire.version>
-        <maven.failsafe.version>3.0.0-M7</maven.failsafe.version>
+        <maven.surefire.version>3.1.2</maven.surefire.version>
+        <maven.failsafe.version>3.1.2</maven.failsafe.version>
         <maven.assembly.version>3.4.2</maven.assembly.version>
         <maven.shade.version>3.4.1</maven.shade.version>
         <maven.javadoc.version>3.4.1</maven.javadoc.version>
@@ -124,29 +124,30 @@
         <lombok.version>1.18.24</lombok.version>
 
         <!-- Runtime dependencies -->
-        <fabric8.kubernetes-client.version>6.8.1</fabric8.kubernetes-client.version>
-        <fabric8.openshift-client.version>6.8.1</fabric8.openshift-client.version>
-        <fabric8.kubernetes-model.version>6.8.1</fabric8.kubernetes-model.version>
+        <fabric8.kubernetes-client.version>6.9.2</fabric8.kubernetes-client.version>
+        <fabric8.openshift-client.version>6.9.2</fabric8.openshift-client.version>
+        <fabric8.kubernetes-model.version>6.9.2</fabric8.kubernetes-model.version>
         <fabric8.zjsonpatch.version>0.3.0</fabric8.zjsonpatch.version>
-        <fasterxml.jackson-core.version>2.15.2</fasterxml.jackson-core.version>
-        <fasterxml.jackson-databind.version>2.15.2</fasterxml.jackson-databind.version>
-        <fasterxml.jackson-dataformat.version>2.15.2</fasterxml.jackson-dataformat.version>
-        <fasterxml.jackson-annotations.version>2.15.2</fasterxml.jackson-annotations.version>
-        <vertx.version>4.4.4</vertx.version>
-        <vertx-junit5.version>4.4.4</vertx-junit5.version>
-        <kafka.version>3.5.1</kafka.version>
+        <fasterxml.jackson-core.version>2.15.3</fasterxml.jackson-core.version>
+        <fasterxml.jackson-databind.version>2.15.3</fasterxml.jackson-databind.version>
+        <fasterxml.jackson-dataformat.version>2.15.3</fasterxml.jackson-dataformat.version>
+        <fasterxml.jackson-annotations.version>2.15.3</fasterxml.jackson-annotations.version>
+        <fasterxml.jackson-datatype.version>2.15.3</fasterxml.jackson-datatype.version>
+        <fasterxml.jackson-jaxrs.version>2.15.3</fasterxml.jackson-jaxrs.version>
+        <vertx.version>4.5.0</vertx.version>
+        <vertx-junit5.version>4.5.0</vertx-junit5.version>
+        <kafka.version>3.6.0</kafka.version>
         <yammer-metrics.version>2.2.0</yammer-metrics.version>
-        <scala-library.version>2.13.9</scala-library.version>
-        <zookeeper.version>3.6.4</zookeeper.version>
+        <zookeeper.version>3.8.3</zookeeper.version>
         <zkclient.version>0.11</zkclient.version>
         <slf4j.version>1.7.36</slf4j.version>
         <log4j.version>2.17.2</log4j.version>
         <quartz.version>2.3.2</quartz.version>
         <opentelemetry.alpha-version>1.19.0-alpha</opentelemetry.alpha-version>
-        <jetty.version>9.4.51.v20230217</jetty.version>
+        <jetty.version>9.4.53.v20231009</jetty.version>
         <javax-servlet.version>3.1.0</javax-servlet.version>
-        <strimzi-oauth.version>0.13.0</strimzi-oauth.version>
-        <netty.version>4.1.94.Final</netty.version>
+        <strimzi-oauth.version>0.14.0</strimzi-oauth.version>
+        <netty.version>4.1.100.Final</netty.version>
         <micrometer.version>1.9.5</micrometer.version>
         <jayway-jsonpath.version>2.8.0</jayway-jsonpath.version>
         <registry.version>1.3.2.Final</registry.version>
@@ -159,7 +160,7 @@
         <junit-platform-surefire-provider.version>1.3.2</junit-platform-surefire-provider.version>
         <opentest4j.version>1.2.0</opentest4j.version>
         <jupiter.version>5.8.2</jupiter.version>
-        <strimzi-test-container.version>0.104.0</strimzi-test-container.version>
+        <strimzi-test-container.version>0.105.0</strimzi-test-container.version>
         <mockserver.version>5.13.2</mockserver.version>
         <mockwebserver.version>3.14.7</mockwebserver.version>
         <valid4j.version>1.1</valid4j.version>
@@ -459,23 +460,23 @@
                 <exclusions>
                     <exclusion>
                         <groupId>io.netty</groupId>
-                        <artifactId>netty</artifactId>
+                        <artifactId>netty-handler</artifactId>
                     </exclusion>
                     <exclusion>
-                        <groupId>jline</groupId>
-                        <artifactId>jline</artifactId>
+                        <groupId>io.netty</groupId>
+                        <artifactId>netty-transport-native-epoll</artifactId>
                     </exclusion>
                     <exclusion>
-                        <groupId>log4j</groupId>
-                        <artifactId>log4j</artifactId>
+                        <groupId>ch.qos.logback</groupId>
+                        <artifactId>logback-classic</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>ch.qos.logback</groupId>
+                        <artifactId>logback-core</artifactId>
                     </exclusion>
                     <exclusion>
                         <groupId>org.slf4j</groupId>
-                        <artifactId>slf4j-log4j12</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.github.spotbugs</groupId>
-                        <artifactId>spotbugs-annotations</artifactId>
+                        <artifactId>slf4j-api</artifactId>
                     </exclusion>
                 </exclusions>
             </dependency>
@@ -493,11 +494,6 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>${slf4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.scala-lang</groupId>
-                <artifactId>scala-library</artifactId>
-                <version>${scala-library.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
@@ -548,6 +544,26 @@
                 <groupId>com.fasterxml.jackson.module</groupId>
                 <artifactId>jackson-module-scala_2.13</artifactId>
                 <version>${fasterxml.jackson-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jdk8</artifactId>
+                <version>${fasterxml.jackson-datatype.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${fasterxml.jackson-datatype.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.jaxrs</groupId>
+                <artifactId>jackson-jaxrs-base</artifactId>
+                <version>${fasterxml.jackson-jaxrs.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.jaxrs</groupId>
+                <artifactId>jackson-jaxrs-json-provider</artifactId>
+                <version>${fasterxml.jackson-jaxrs.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.vertx</groupId>
@@ -1127,7 +1143,6 @@
                                 <ignoredUnusedDeclaredDependency>org.apache.kafka:kafka-streams</ignoredUnusedDeclaredDependency>
                                 <!-- Used in Kafka Agent through reflection -->
                                 <ignoredUnusedDeclaredDependency>org.apache.kafka:kafka-server-common</ignoredUnusedDeclaredDependency>
-                                <ignoredUnusedDeclaredDependency>org.scala-lang:scala-library</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.apache.logging.log4j:log4j-core</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>org.apache.logging.log4j:log4j-slf4j-impl</ignoredUnusedDeclaredDependency>
                                 <ignoredUnusedDeclaredDependency>io.sundr:builder-annotations</ignoredUnusedDeclaredDependency>

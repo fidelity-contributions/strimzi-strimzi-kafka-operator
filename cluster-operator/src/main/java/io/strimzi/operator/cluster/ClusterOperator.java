@@ -150,8 +150,7 @@ public class ClusterOperator extends AbstractVerticle {
     }
 
     private Future<Void> maybeStartStrimziPodSetController() {
-        Promise<Void> handler = Promise.promise();
-        vertx.executeBlocking(future -> {
+        return vertx.executeBlocking(() -> {
             try {
                 strimziPodSetController = new StrimziPodSetController(
                         namespace,
@@ -165,13 +164,12 @@ public class ClusterOperator extends AbstractVerticle {
                         config.getPodSetControllerWorkQueueSize()
                 );
                 strimziPodSetController.start();
-                future.complete();
+                return null;
             } catch (Throwable e) {
                 LOGGER.error("StrimziPodSetController start failed");
-                future.fail(e);
+                throw e;
             }
-        }, handler);
-        return handler.future();
+        });
     }
 
     @Override

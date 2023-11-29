@@ -107,7 +107,6 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     protected static final String COMPONENT_TYPE = "kafka";
 
     protected static final String ENV_VAR_KAFKA_INIT_EXTERNAL_ADDRESS = "EXTERNAL_ADDRESS";
-    /* test */ static final String ENV_VAR_STRIMZI_CLUSTER_ID = "STRIMZI_CLUSTER_ID";
     /* test */ static final String ENV_VAR_STRIMZI_KRAFT_ENABLED = "STRIMZI_KRAFT_ENABLED";
     private static final String ENV_VAR_KAFKA_METRICS_ENABLED = "KAFKA_METRICS_ENABLED";
 
@@ -123,7 +122,6 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     protected static final String KAFKA_AGENT_PORT_NAME = "tcp-kafkaagent";
     protected static final int CONTROLPLANE_PORT = 9090;
     protected static final String CONTROLPLANE_PORT_NAME = "tcp-ctrlplane"; // port name is up to 15 characters
-
 
     /**
      * Port used by the Route listeners
@@ -171,7 +169,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     public static final String ANNO_STRIMZI_BROKER_CONFIGURATION_HASH = Annotations.STRIMZI_DOMAIN + "broker-configuration-hash";
 
     /**
-     * Annotation for keeping certificate thumprints
+     * Annotation for keeping certificate thumbprints
      */
     public static final String ANNO_STRIMZI_CUSTOM_LISTENER_CERT_THUMBPRINTS = Annotations.STRIMZI_DOMAIN + "custom-listener-cert-thumbprints";
 
@@ -179,6 +177,11 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      * The annotation value which indicates that the Node Pools are enabled
      */
     public static final String ENABLED_VALUE_STRIMZI_IO_NODE_POOLS = "enabled";
+
+    /**
+     * The annotation value which indicates that the KRaft mode is enabled
+     */
+    public static final String ENABLED_VALUE_STRIMZI_IO_KRAFT = "enabled";
 
     /**
      * Key under which the broker configuration is stored in Config Map
@@ -190,12 +193,23 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      */
     public static final String BROKER_LISTENERS_FILENAME = "listeners.config";
 
+    /**
+     * Key under which the Kafka cluster.id is stored in Config Map
+     */
+    public static final String BROKER_CLUSTER_ID_FILENAME = "cluster.id";
+
+    /**
+     * Key under which the desired Kafka metadata version is stored in Config Map
+     */
+    public static final String BROKER_METADATA_VERSION_FILENAME = "metadata.version";
+
     // Kafka configuration
     private Rack rack;
     private String initImage;
     private List<GenericKafkaListener> listeners;
     private KafkaAuthorization authorization;
     private KafkaVersion kafkaVersion;
+    private String metadataVersion;
     private boolean useKRaft = false;
     private String clusterId;
     private JmxModel jmx;
@@ -368,6 +382,21 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     }
 
     /**
+     * Generates list of references to Kafka node ids going to be removed from the Kafka cluster.
+     *
+     * @return  Set of Kafka node ids which are going to be removed
+     */
+    public Set<Integer> removedNodes() {
+        Set<Integer> nodes = new LinkedHashSet<>();
+
+        for (KafkaPool pool : nodePools)    {
+            nodes.addAll(pool.scaledDownNodes());
+        }
+
+        return nodes;
+    }
+
+    /**
      * Generates list of references to Kafka nodes for this Kafka cluster which have the broker role. The references
      * contain both the pod name and the ID of the Kafka node.
      *
@@ -421,9 +450,11 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     /**
      * Finds a node pool to which this given node belongs
      *
+     * @param nodeId    Id of the Kafka node for that we want to find the node pool
+     *
      * @return  KafkaPool which includes this node ID
      */
-    private KafkaPool nodePoolForNodeId(int nodeId) {
+    public KafkaPool nodePoolForNodeId(int nodeId) {
         for (KafkaPool pool : nodePools)    {
             if (pool.containsNodeId(nodeId))    {
                 return pool;
@@ -1088,19 +1119,37 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
                 emptyMap());
     }
 
-    /* test */ List<ContainerPort> getContainerPortList() {
+    /**
+     * Node Pool for which the ports should be generated. In KRaft, the ports for controller-only nodes might differ
+     * from broker nodes as they do not need all the listeners for clients or for replication.
+     *
+     * @param pool  Pool for which the ports should be generated
+     *
+     * @return  List of container ports
+     */
+    /* test */ List<ContainerPort> getContainerPortList(KafkaPool pool) {
         List<ContainerPort> ports = new ArrayList<>(listeners.size() + 3);
-        ports.add(ContainerUtils.createContainerPort(CONTROLPLANE_PORT_NAME, CONTROLPLANE_PORT));
-        ports.add(ContainerUtils.createContainerPort(REPLICATION_PORT_NAME, REPLICATION_PORT));
 
-        for (GenericKafkaListener listener : listeners) {
-            ports.add(ContainerUtils.createContainerPort(ListenersUtils.backwardsCompatiblePortName(listener), listener.getPort()));
+        if (!useKRaft || pool.isController()) {
+            // The control plane listener is on all nodes in ZooKeeper based clusters and on nodes with controller role in KRaft
+            ports.add(ContainerUtils.createContainerPort(CONTROLPLANE_PORT_NAME, CONTROLPLANE_PORT));
         }
 
+        // Replication and user-configured listeners are only on nodes with the broker role (this includes all nodes in ZooKeeper based clusters)
+        if (pool.isBroker()) {
+            ports.add(ContainerUtils.createContainerPort(REPLICATION_PORT_NAME, REPLICATION_PORT));
+
+            for (GenericKafkaListener listener : listeners) {
+                ports.add(ContainerUtils.createContainerPort(ListenersUtils.backwardsCompatiblePortName(listener), listener.getPort()));
+            }
+        }
+
+        // Metrics port is enabled on all node types regardless their role
         if (metrics.isEnabled()) {
             ports.add(ContainerUtils.createContainerPort(MetricsModel.METRICS_PORT_NAME, MetricsModel.METRICS_PORT));
         }
 
+        // JMX port is enabled on all node types regardless their role
         ports.addAll(jmx.containerPorts());
 
         return ports;
@@ -1125,7 +1174,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      * Generates PVCs for a single pool. The Storage configuration is passed separately to allow passing custom storage
      * configuration. This is used for example during the "Pod and PVC" cleanup through annotation.
      *
-     * @param pool      Kafka pool for which the PVCs will be geenrated
+     * @param pool      Kafka pool for which the PVCs will be generated
      * @param storage   Storage configuration
      *
      * @return  List of PVCs
@@ -1323,7 +1372,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
             varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_INIT_RACK_TOPOLOGY_KEY, rack.getTopologyKey()));
         }
 
-        if (!ListenersUtils.nodePortListeners(listeners).isEmpty()) {
+        if (pool.isBroker() && !ListenersUtils.nodePortListeners(listeners).isEmpty()) {
             varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_INIT_EXTERNAL_ADDRESS, "TRUE"));
         }
 
@@ -1371,7 +1420,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
                 securityProvider.kafkaContainerSecurityContext(new ContainerSecurityProviderContextImpl(pool.storage, pool.templateContainer)),
                 pool.resources,
                 getEnvVars(pool),
-                getContainerPortList(),
+                getContainerPortList(pool),
                 getVolumeMounts(pool.storage),
                 ProbeUtils.defaultBuilder(livenessProbeOptions).withNewExec().withCommand("/opt/kafka/kafka_liveness.sh").endExec().build(),
                 ProbeUtils.defaultBuilder(readinessProbeOptions).withNewExec().withCommand("/opt/kafka/kafka_readiness.sh").endExec().build(),
@@ -1406,7 +1455,6 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
         }
 
         if (useKRaft)   {
-            varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_CLUSTER_ID, clusterId));
             varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KRAFT_ENABLED, "true"));
         }
 
@@ -1568,10 +1616,10 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      *
      * @return The Kafka broker configuration as a String
      */
-    public String generatePerBrokerBrokerConfiguration(int nodeId, Map<Integer, Map<String, String>> advertisedHostnames, Map<Integer, Map<String, String>> advertisedPorts)   {
+    public String generatePerBrokerConfiguration(int nodeId, Map<Integer, Map<String, String>> advertisedHostnames, Map<Integer, Map<String, String>> advertisedPorts)   {
         KafkaPool pool = nodePoolForNodeId(nodeId);
 
-        return generatePerBrokerBrokerConfiguration(
+        return generatePerBrokerConfiguration(
                 pool.nodeRef(nodeId),
                 pool,
                 advertisedHostnames,
@@ -1589,40 +1637,28 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      *
      * @return  String with the Kafka broker configuration
      */
-    private String generatePerBrokerBrokerConfiguration(NodeRef node, KafkaPool pool, Map<Integer, Map<String, String>> advertisedHostnames, Map<Integer, Map<String, String>> advertisedPorts)   {
+    private String generatePerBrokerConfiguration(NodeRef node, KafkaPool pool, Map<Integer, Map<String, String>> advertisedHostnames, Map<Integer, Map<String, String>> advertisedPorts)   {
+        KafkaBrokerConfigurationBuilder builder =
+                new KafkaBrokerConfigurationBuilder(reconciliation, String.valueOf(node.nodeId()), useKRaft)
+                        .withRackId(rack)
+                        .withLogDirs(VolumeUtils.createVolumeMounts(pool.storage, DATA_VOLUME_MOUNT_PATH, false))
+                        .withListeners(cluster,
+                                namespace,
+                                node,
+                                listeners,
+                                listenerId -> advertisedHostnames.get(node.nodeId()).get(listenerId),
+                                listenerId -> advertisedPorts.get(node.nodeId()).get(listenerId)
+                        )
+                        .withAuthorization(cluster, authorization)
+                        .withCruiseControl(cluster, ccMetricsReporter, node.broker())
+                        .withUserConfiguration(configuration, node.broker() && ccMetricsReporter != null);
+
         if (useKRaft) {
-            return new KafkaBrokerConfigurationBuilder(reconciliation, String.valueOf(node.nodeId()), true)
-                    .withRackId(rack)
-                    .withKRaft(cluster, namespace, pool.processRoles, nodes())
-                    .withLogDirs(VolumeUtils.createVolumeMounts(pool.storage, DATA_VOLUME_MOUNT_PATH, false))
-                    .withListeners(cluster,
-                            namespace,
-                            node,
-                            listeners,
-                            listenerId -> advertisedHostnames.get(node.nodeId()).get(listenerId),
-                            listenerId -> advertisedPorts.get(node.nodeId()).get(listenerId)
-                    )
-                    .withAuthorization(cluster, authorization)
-                    .withCruiseControl(cluster, ccMetricsReporter, node.broker())
-                    .withUserConfiguration(configuration, node.broker() && ccMetricsReporter != null)
-                    .build().trim();
+            builder.withKRaft(cluster, namespace, pool.processRoles, nodes());
         } else {
-            return new KafkaBrokerConfigurationBuilder(reconciliation, String.valueOf(node.nodeId()), false)
-                    .withRackId(rack)
-                    .withZookeeper(cluster)
-                    .withLogDirs(VolumeUtils.createVolumeMounts(pool.storage, DATA_VOLUME_MOUNT_PATH, false))
-                    .withListeners(cluster,
-                            namespace,
-                            node,
-                            listeners,
-                            listenerId -> advertisedHostnames.get(node.nodeId()).get(listenerId),
-                            listenerId -> advertisedPorts.get(node.nodeId()).get(listenerId)
-                    )
-                    .withAuthorization(cluster, authorization)
-                    .withCruiseControl(cluster, ccMetricsReporter, node.broker())
-                    .withUserConfiguration(configuration, node.broker() && ccMetricsReporter != null)
-                    .build().trim();
+            builder.withZookeeper(cluster);
         }
+        return builder.build().trim();
     }
 
     /**
@@ -1649,10 +1685,20 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
                 }
 
                 data.put(logging.configMapKey(), parsedLogging);
-                data.put(BROKER_CONFIGURATION_FILENAME, generatePerBrokerBrokerConfiguration(node, pool, advertisedHostnames, advertisedPorts));
+                data.put(BROKER_CONFIGURATION_FILENAME, generatePerBrokerConfiguration(node, pool, advertisedHostnames, advertisedPorts));
+
                 // List of configured listeners => StrimziPodSets still need this because of OAUTH and how the OAUTH secret
-                // environment variables are parsed in the container bash scripts
-                data.put(BROKER_LISTENERS_FILENAME, listeners.stream().map(ListenersUtils::envVarIdentifier).collect(Collectors.joining(" ")));
+                // environment variables are parsed in the container bash scripts.
+                // The actual content of this file is not used on controller-only nodes as they do not expose any
+                // user-configured listeners. But we still pass there an empty file as that allows us to share the same
+                // script to generate the node configuration.
+                data.put(BROKER_LISTENERS_FILENAME, node.broker() ? listeners.stream().map(ListenersUtils::envVarIdentifier).collect(Collectors.joining(" ")) : null);
+
+                if (useKRaft) {
+                    // In KRaft, we need to pass the Kafka CLuster ID and the metadata version
+                    data.put(BROKER_CLUSTER_ID_FILENAME, clusterId);
+                    data.put(BROKER_METADATA_VERSION_FILENAME, metadataVersion);
+                }
 
                 configMaps.add(ConfigMapUtils.createConfigMap(node.podName(), namespace, pool.labels.withStrimziPodName(node.podName()), pool.ownerReference, data));
 
@@ -1699,6 +1745,30 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      */
     public void setInterBrokerProtocolVersion(String interBrokerProtocolVersion) {
         configuration.setConfigOption(KafkaConfiguration.INTERBROKER_PROTOCOL_VERSION, interBrokerProtocolVersion);
+    }
+
+    /**
+     * @return  Kafka's desired metadata version
+     */
+    public String getMetadataVersion() {
+        return metadataVersion;
+    }
+
+    /**
+     * Sets the KRaft metadata version
+     *
+     * @param metadataVersion   KRaft metadata version
+     */
+    public void setMetadataVersion(String metadataVersion)   {
+        KRaftUtils.validateMetadataVersion(metadataVersion);
+        this.metadataVersion = metadataVersion;
+    }
+
+    /**
+     * @return  Indicates whether this is a KRaft cluster or not
+     */
+    public boolean usesKRaft() {
+        return useKRaft;
     }
 
     /**

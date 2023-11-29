@@ -740,7 +740,7 @@ public class KafkaClusterTest {
                 2, Map.of("PLAIN_9092", "9092", "TLS_9093", "10002")
         );
 
-        String config = KC.generatePerBrokerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
+        String config = KC.generatePerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
 
         assertThat(config, CoreMatchers.containsString("broker.id=1"));
         assertThat(config, CoreMatchers.containsString("node.id=1"));
@@ -1505,7 +1505,7 @@ public class KafkaClusterTest {
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
 
         // Check port
-        List<ContainerPort> ports = kc.getContainerPortList();
+        List<ContainerPort> ports = kc.getContainerPortList(pools.get(0));
         assertThat(ports.contains(ContainerUtils.createContainerPort(ListenersUtils.BACKWARDS_COMPATIBLE_EXTERNAL_PORT_NAME, 9094)), is(true));
 
         // Check external bootstrap service
@@ -1693,7 +1693,7 @@ public class KafkaClusterTest {
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
 
         // Check port
-        List<ContainerPort> ports = kc.getContainerPortList();
+        List<ContainerPort> ports = kc.getContainerPortList(pools.get(0));
         assertThat(ports.contains(ContainerUtils.createContainerPort(ListenersUtils.BACKWARDS_COMPATIBLE_EXTERNAL_PORT_NAME, 9094)), is(true));
 
         // Check external bootstrap service
@@ -2095,7 +2095,7 @@ public class KafkaClusterTest {
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
 
         // Check port
-        List<ContainerPort> ports = kc.getContainerPortList();
+        List<ContainerPort> ports = kc.getContainerPortList(pools.get(0));
         assertThat(ports.contains(ContainerUtils.createContainerPort(ListenersUtils.BACKWARDS_COMPATIBLE_EXTERNAL_PORT_NAME, 9094)), is(true));
 
         // Check external bootstrap service
@@ -2185,7 +2185,7 @@ public class KafkaClusterTest {
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
 
         // Check port
-        List<ContainerPort> ports = kc.getContainerPortList();
+        List<ContainerPort> ports = kc.getContainerPortList(pools.get(0));
         assertThat(ports.contains(ContainerUtils.createContainerPort(ListenersUtils.BACKWARDS_COMPATIBLE_EXTERNAL_PORT_NAME, 9094)), is(true));
 
         // Check external bootstrap service
@@ -3020,7 +3020,7 @@ public class KafkaClusterTest {
         assertThat(kc.isExposedWithIngress(), is(true));
 
         // Check port
-        List<ContainerPort> ports = kc.getContainerPortList();
+        List<ContainerPort> ports = kc.getContainerPortList(pools.get(0));
         assertThat(ports.contains(ContainerUtils.createContainerPort(ListenersUtils.BACKWARDS_COMPATIBLE_EXTERNAL_PORT_NAME, 9094)), is(true));
 
         // Check external bootstrap service
@@ -3225,7 +3225,7 @@ public class KafkaClusterTest {
         assertThat(kc.isExposedWithClusterIP(), is(true));
 
         // Check port
-        List<ContainerPort> ports = kc.getContainerPortList();
+        List<ContainerPort> ports = kc.getContainerPortList(pools.get(0));
         assertThat(ports.contains(ContainerUtils.createContainerPort(ListenersUtils.BACKWARDS_COMPATIBLE_EXTERNAL_PORT_NAME, 9094)), is(true));
 
         // Check external bootstrap service
@@ -3606,7 +3606,7 @@ public class KafkaClusterTest {
         List<KafkaPool> pools = NodePoolUtils.createKafkaPools(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, null, Map.of(), Map.of(), false, SHARED_ENV_PROVIDER);
         KafkaCluster kafkaCluster = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
 
-        String brokerConfig = kafkaCluster.generatePerBrokerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
+        String brokerConfig = kafkaCluster.generatePerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
 
         assertThat(brokerConfig, CoreMatchers.containsString(CruiseControlConfigurationParameters.METRICS_TOPIC_NUM_PARTITIONS + "=" + 1));
         assertThat(brokerConfig, CoreMatchers.containsString(CruiseControlConfigurationParameters.METRICS_TOPIC_REPLICATION_FACTOR + "=" + 1));
@@ -3645,7 +3645,7 @@ public class KafkaClusterTest {
                 .build();
         List<KafkaPool> pools = NodePoolUtils.createKafkaPools(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, null, Map.of(), Map.of(), false, SHARED_ENV_PROVIDER);
         KafkaCluster kafkaCluster = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
-        String brokerConfig = kafkaCluster.generatePerBrokerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
+        String brokerConfig = kafkaCluster.generatePerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
 
         assertThat(brokerConfig, CoreMatchers.containsString(CruiseControlConfigurationParameters.METRICS_TOPIC_NUM_PARTITIONS + "=" + partitions));
         assertThat(brokerConfig, CoreMatchers.containsString(CruiseControlConfigurationParameters.METRICS_TOPIC_REPLICATION_FACTOR + "=" + replicationFactor));
@@ -3681,7 +3681,7 @@ public class KafkaClusterTest {
         List<KafkaPool> pools = NodePoolUtils.createKafkaPools(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, null, Map.of(), Map.of(), false, SHARED_ENV_PROVIDER);
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaAssembly, pools, VERSIONS, false, null, SHARED_ENV_PROVIDER);
 
-        String brokerConfig = kc.generatePerBrokerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
+        String brokerConfig = kc.generatePerBrokerConfiguration(1, advertisedHostnames, advertisedPorts);
 
         assertThat(brokerConfig, CoreMatchers.containsString(CruiseControlConfigurationParameters.METRICS_TOPIC_MIN_ISR + "=" + minInsync));
     }
@@ -3894,15 +3894,12 @@ public class KafkaClusterTest {
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, KAFKA, pools, VERSIONS, true, "my-cluster-id", SHARED_ENV_PROVIDER);
 
         // Test that the broker configuration is with KRaft
-        String config = kc.generatePerBrokerBrokerConfiguration(2, advertisedHostnames, advertisedPorts);
+        String config = kc.generatePerBrokerConfiguration(2, advertisedHostnames, advertisedPorts);
         assertThat(config, CoreMatchers.containsString("process.roles"));
         assertThat(config, CoreMatchers.containsString("controller.quorum.voters"));
 
-        // Test that ClusterID KRaft flag are passed as environment variable
+        // Test that KRaft flag is passed as environment variable
         List<EnvVar> kafkaEnvVars = kc.getEnvVars(pools.get(0));
-        EnvVar clusterIdEnvVar = kafkaEnvVars.stream().filter(env -> KafkaCluster.ENV_VAR_STRIMZI_CLUSTER_ID.equals(env.getName())).findFirst().orElse(null);
-        assertThat(clusterIdEnvVar, is(Matchers.notNullValue()));
-        assertThat(clusterIdEnvVar.getValue().isEmpty(), is(false));
         EnvVar kraftEnabledEnvVar = kafkaEnvVars.stream().filter(env -> KafkaCluster.ENV_VAR_STRIMZI_KRAFT_ENABLED.equals(env.getName())).findFirst().orElse(null);
         assertThat(kraftEnabledEnvVar, is(Matchers.notNullValue()));
         assertThat(kraftEnabledEnvVar.getValue().isEmpty(), is(false));
@@ -3926,15 +3923,12 @@ public class KafkaClusterTest {
         KafkaCluster kc = KafkaCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, KAFKA, pools, VERSIONS, true, clusterId, SHARED_ENV_PROVIDER);
 
         // Test that the broker configuration is with KRaft
-        String config = kc.generatePerBrokerBrokerConfiguration(2, advertisedHostnames, advertisedPorts);
+        String config = kc.generatePerBrokerConfiguration(2, advertisedHostnames, advertisedPorts);
         assertThat(config, CoreMatchers.containsString("process.roles"));
         assertThat(config, CoreMatchers.containsString("controller.quorum.voters"));
 
-        // Test that ClusterID and KRaft flag are passed as environment variable
+        // Test that the KRaft flag is passed as environment variable
         List<EnvVar> kafkaEnvVars = kc.getEnvVars(pools.get(0));
-        EnvVar clusterIdEnvVar = kafkaEnvVars.stream().filter(env -> KafkaCluster.ENV_VAR_STRIMZI_CLUSTER_ID.equals(env.getName())).findFirst().orElse(null);
-        assertThat(clusterIdEnvVar, is(Matchers.notNullValue()));
-        assertThat(clusterIdEnvVar.getValue(), is(clusterId));
         EnvVar kraftEnabledEnvVar = kafkaEnvVars.stream().filter(env -> KafkaCluster.ENV_VAR_STRIMZI_KRAFT_ENABLED.equals(env.getName())).findFirst().orElse(null);
         assertThat(kraftEnabledEnvVar, is(Matchers.notNullValue()));
         assertThat(kraftEnabledEnvVar.getValue().isEmpty(), is(false));

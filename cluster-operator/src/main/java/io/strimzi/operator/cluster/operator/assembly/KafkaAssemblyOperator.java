@@ -150,32 +150,31 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
                 status.setObservedGeneration(kafkaAssembly.getMetadata().getGeneration());
             }
 
-            if (status.getClusterId() == null
-                    && kafkaAssembly.getStatus() != null
-                    && kafkaAssembly.getStatus().getClusterId() != null)  {
-                // If not set in the status prepared by reconciliation but set in the status previously, we copy the
-                // cluster ID into the new status. This is useful for example when the reconciliation fails for some
-                // reason before setting the cluster ID
-                status.setClusterId(kafkaAssembly.getStatus().getClusterId());
-            }
+            // When some of the fields are not set in the new status (for example because the reconciliation failed),
+            // but the existing resource has them set in its status, we copy them over.
+            if (kafkaAssembly.getStatus() != null)  {
+                if (status.getClusterId() == null
+                        && kafkaAssembly.getStatus().getClusterId() != null)  {
+                    // Copy the Cluster ID if needed
+                    status.setClusterId(kafkaAssembly.getStatus().getClusterId());
+                }
 
-            if (kafkaAssembly.getStatus() != null
-                    && kafkaAssembly.getStatus().getOperatorLastSuccessfulVersion() != null
-            )  {
-                // If not set in the status prepared by reconciliation but set in the status previously, we copy the
-                // operatorLastSuccessfulVersion version into the new status. This is useful for example when the reconciliation fails for some
-                // reason before setting the cluster ID
-                status.setOperatorLastSuccessfulVersion(kafkaAssembly.getStatus().getOperatorLastSuccessfulVersion());
-            }
+                if (kafkaAssembly.getStatus().getOperatorLastSuccessfulVersion() != null)  {
+                    // Copy the last successful operator version if needed
+                    status.setOperatorLastSuccessfulVersion(kafkaAssembly.getStatus().getOperatorLastSuccessfulVersion());
+                }
 
-            if (status.getKafkaVersion() == null
-                    && kafkaAssembly.getStatus() != null
-                    && kafkaAssembly.getStatus().getKafkaVersion() != null
-            )  {
-                // If not set in the status prepared by reconciliation but set in the status previously, we copy the
-                // kafka version into the new status. This is useful for example when the reconciliation fails for some
-                // reason before setting the cluster ID
-                status.setKafkaVersion(kafkaAssembly.getStatus().getKafkaVersion());
+                if (status.getKafkaVersion() == null
+                        && kafkaAssembly.getStatus().getKafkaVersion() != null)  {
+                    // Copy the Kafka version if needed
+                    status.setKafkaVersion(kafkaAssembly.getStatus().getKafkaVersion());
+                }
+
+                if (status.getKafkaMetadataVersion() == null
+                        && kafkaAssembly.getStatus().getKafkaMetadataVersion() != null)  {
+                    // Copy the metadata version if needed
+                    status.setKafkaMetadataVersion(kafkaAssembly.getStatus().getKafkaMetadataVersion());
+                }
             }
 
             if (reconcileResult.succeeded())    {
@@ -209,7 +208,9 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
     Future<Void> reconcile(ReconciliationState reconcileState)  {
         Promise<Void> chainPromise = Promise.promise();
 
-        if (featureGates.useKRaftEnabled()) {
+        boolean isKRaftEnabled = featureGates.useKRaftEnabled() && ReconcilerUtils.kraftEnabled(reconcileState.kafkaAssembly);
+
+        if (isKRaftEnabled) {
             // Makes sure KRaft is used only with KafkaNodePool custom resources and not with virtual node pools
             if (featureGates.kafkaNodePoolsEnabled()
                     && !ReconcilerUtils.nodePoolsEnabled(reconcileState.kafkaAssembly))  {
@@ -227,10 +228,10 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
         reconcileState.initialStatus()
                 // Preparation steps => prepare cluster descriptions, handle CA creation or changes
                 .compose(state -> state.reconcileCas(clock))
-                .compose(state -> state.versionChange())
+                .compose(state -> state.versionChange(isKRaftEnabled))
 
                 // Run reconciliations of the different components
-                .compose(state -> featureGates.useKRaftEnabled() ? Future.succeededFuture(state) : state.reconcileZooKeeper(clock))
+                .compose(state -> isKRaftEnabled ? Future.succeededFuture(state) : state.reconcileZooKeeper(clock))
                 .compose(state -> state.reconcileKafka(clock))
                 .compose(state -> state.reconcileEntityOperator(clock))
                 .compose(state -> state.reconcileCruiseControl(clock))
@@ -446,19 +447,27 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
         /**
          * Provider method for VersionChangeCreator. Overriding this method can be used to get mocked creator.
          *
+         * @param isKRaftEnabled    Indicates whether KRaft is enabled for this custom resource
+         *
          * @return  VersionChangeCreator instance
          */
-        VersionChangeCreator versionChangeCreator()   {
-            return new VersionChangeCreator(reconciliation, kafkaAssembly, config, supplier);
+        VersionChangeCreator versionChangeCreator(boolean isKRaftEnabled)   {
+            if (isKRaftEnabled)   {
+                return new KRaftVersionChangeCreator(reconciliation, kafkaAssembly, config, supplier);
+            } else {
+                return new ZooKeeperVersionChangeCreator(reconciliation, kafkaAssembly, config, supplier);
+            }
         }
 
         /**
          * Creates the KafkaVersionChange instance describing the version changes in this reconciliation.
          *
+         * @param isKRaftEnabled    Indicates whether KRaft is enabled for this custom resource
+         *
          * @return  Future with Reconciliation State
          */
-        Future<ReconciliationState> versionChange()    {
-            return versionChangeCreator()
+        Future<ReconciliationState> versionChange(boolean isKRaftEnabled)    {
+            return versionChangeCreator(isKRaftEnabled)
                     .reconcile()
                     .compose(versionChange -> {
                         this.versionChange = versionChange;

@@ -19,11 +19,11 @@ import io.strimzi.operator.common.ReconciliationLogger;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -52,23 +52,15 @@ public class ResourceSupport {
      * @return The Future
      */
     public Future<Void> closeOnWorkerThread(Closeable closeable) {
-        return executeBlocking(
-            blockingFuture -> {
-                try {
-                    LOGGER.debugOp("Closing {}", closeable);
-                    closeable.close();
-                    blockingFuture.complete();
-                } catch (Throwable t) {
-                    blockingFuture.fail(t);
-                }
-            });
+        return executeBlocking(() -> {
+            LOGGER.debugOp("Closing {}", closeable);
+            closeable.close();
+            return null;
+        });
     }
 
-    <T> Future<T> executeBlocking(Handler<Promise<T>> blockingCodeHandler) {
-        Promise<T> result = Promise.promise();
-        vertx.createSharedWorkerExecutor("kubernetes-ops-pool")
-                .executeBlocking(blockingCodeHandler, true, result);
-        return result.future();
+    <T> Future<T> executeBlocking(Callable<T> callable) {
+        return vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(callable);
     }
 
     /**
@@ -107,7 +99,7 @@ public class ResourceSupport {
      *
      * In some cases such as resource deletion, it might happen that the resource is deleted already before the watch is
      * started and as a result the watch never completes. The {@code preCheckFn} will be invoked on a worker thread
-     * after the watch has been created. It is expected to double check if we still need to wait for the watch to fire.
+     * after the watch has been created. It is expected to double-check if we still need to wait for the watch to fire.
      * When the {@code preCheckFn} returns non-null the watch will be closed and the future returned from this method
      * will be completed with the result of the {@code preCheckFn} on the context thread. In the deletion example
      * described above, the {@code preCheckFn} can check if the resource still exists and close the watch in case it was
@@ -119,13 +111,13 @@ public class ResourceSupport {
      * @param operationTimeoutMs The timeout in ms.
      * @param watchFnDescription A description of what {@code watchFn} is watching for.
      *                           E.g. "observe ${condition} of ${kind} ${namespace}/${name}".
-     * @param watchFn The function to determine if the event occured
+     * @param watchFn The function to determine if the event occurred
      * @param preCheckFn Pre-check function to avoid situation when the watch is never fired because ot was started too late.
      * @param <T> The type of watched resource.
      * @param <U> The result type of the {@code watchFn}.
      *
      * @return A Futures which completes when the {@code watchFn} returns non-null
-     * in response to some Kubenetes even on the watched resource(s).
+     * in response to some Kubernetes even on the watched resource(s).
      */
     <T, U> Future<U> selfClosingWatch(Reconciliation reconciliation,
                                       Watchable<T> watchable,
@@ -172,7 +164,7 @@ public class ResourceSupport {
                     Watch watch = watchable.watch(this);
                     LOGGER.debugCr(reconciliation, "Opened watch {} for evaluation of {}", watch, watchFnDescription);
 
-                    // Pre-check is done after the watch is open to make sure we did not missed the event. In the worst
+                    // Pre-check is done after the watch is open to make sure we did not miss the event. In the worst
                     // case, both pre-check and watch complete the future. But at least one should always complete it.
                     U apply = preCheckFn.apply(gettable.get());
                     if (apply != null) {
@@ -192,25 +184,23 @@ public class ResourceSupport {
             @Override
             public void eventReceived(Action action, T resource) {
                 vertx.executeBlocking(
-                    f -> {
-                        try {
-                            U apply = watchFn.apply(action, resource);
-                            if (apply != null) {
-                                LOGGER.debugCr(reconciliation, "Satisfied: {}", watchFnDescription);
-                                f.tryComplete(apply);
-                                vertx.cancelTimer(timerId);
-                            } else {
-                                LOGGER.debugCr(reconciliation, "Not yet satisfied: {}", watchFnDescription);
+                        () -> {
+                            try {
+                                U apply = watchFn.apply(action, resource);
+                                if (apply != null) {
+                                    LOGGER.debugCr(reconciliation, "Satisfied: {}", watchFnDescription);
+                                    donePromise.tryComplete(apply);
+                                    vertx.cancelTimer(timerId);
+                                } else {
+                                    LOGGER.debugCr(reconciliation, "Not yet satisfied: {}", watchFnDescription);
+                                }
+
+                                return apply;
+                            } catch (Throwable t) {
+                                LOGGER.debugCr(reconciliation, "Ignoring exception thrown while evaluating watch {} because the future was already completed", watchFnDescription, t);
+                                throw t;
                             }
-                        } catch (Throwable t) {
-                            if (!f.tryFail(t)) {
-                                LOGGER.debugCr(reconciliation, "Ignoring exception thrown while " +
-                                        "evaluating watch {} because the future was already completed", watchFnDescription, t);
-                            }
-                        }
-                    },
-                    true,
-                        donePromise);
+                        });
             }
 
             @Override
@@ -231,18 +221,13 @@ public class ResourceSupport {
      * @return A Future which completes on the context thread.
      */
     Future<Void> deleteAsync(Deletable resource) {
-        return executeBlocking(
-            blockingFuture -> {
-                try {
-                    // Returns TRUE when resource was deleted and FALSE when it was not found (see BaseOperation Fabric8 class)
-                    // In both cases we return success since the end-result has been achieved
-                    // Throws an exception for other errors
-                    resource.delete();
-                    blockingFuture.complete();
-                } catch (Throwable t) {
-                    blockingFuture.fail(t);
-                }
-            });
+        return executeBlocking(() -> {
+            // Returns TRUE when resource was deleted and FALSE when it was not found (see BaseOperation Fabric8 class)
+            // In both cases we return success since the end-result has been achieved
+            // Throws an exception for other errors
+            resource.delete();
+            return null;
+        });
     }
 
     /**
@@ -252,14 +237,7 @@ public class ResourceSupport {
      * @return A Future which completes on the context thread.
      */
     <T> Future<T> getAsync(Gettable<T> resource) {
-        return executeBlocking(
-            blockingFuture -> {
-                try {
-                    blockingFuture.complete(resource.get());
-                } catch (Throwable t) {
-                    blockingFuture.fail(t);
-                }
-            });
+        return executeBlocking(resource::get);
     }
 
     /**
@@ -269,13 +247,6 @@ public class ResourceSupport {
      * @return A Future which completes on the context thread.
      */
     <T extends HasMetadata, L extends KubernetesResourceList<T>> Future<List<T>> listAsync(Listable<L> resource) {
-        return executeBlocking(
-            blockingFuture -> {
-                try {
-                    blockingFuture.complete(resource.list(new ListOptionsBuilder().withResourceVersion("0").build()).getItems());
-                } catch (Throwable t) {
-                    blockingFuture.fail(t);
-                }
-            });
+        return executeBlocking(() -> resource.list(new ListOptionsBuilder().withResourceVersion("0").build()).getItems());
     }
 }

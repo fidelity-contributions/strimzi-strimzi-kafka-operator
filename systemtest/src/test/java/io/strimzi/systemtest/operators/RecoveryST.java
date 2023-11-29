@@ -11,14 +11,13 @@ import io.fabric8.kubernetes.api.model.ResourceRequirements;
 import io.fabric8.kubernetes.api.model.ResourceRequirementsBuilder;
 import io.strimzi.api.kafka.model.KafkaResources;
 import io.strimzi.systemtest.AbstractST;
-import io.strimzi.systemtest.Constants;
+import io.strimzi.systemtest.TestConstants;
 import io.strimzi.systemtest.Environment;
 import io.strimzi.systemtest.annotations.KRaftNotSupported;
 import io.strimzi.systemtest.annotations.IsolatedTest;
 import io.strimzi.systemtest.kafkaclients.internalClients.KafkaClients;
 import io.strimzi.systemtest.kafkaclients.internalClients.KafkaClientsBuilder;
 import io.strimzi.systemtest.resources.crd.KafkaNodePoolResource;
-import io.strimzi.systemtest.rollingupdate.KafkaRollerST;
 import io.strimzi.systemtest.storage.TestStorage;
 import io.strimzi.systemtest.templates.crd.KafkaBridgeTemplates;
 import io.strimzi.systemtest.templates.crd.KafkaTemplates;
@@ -39,7 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.strimzi.systemtest.Constants.REGRESSION;
+import static io.strimzi.systemtest.TestConstants.REGRESSION;
 import static io.strimzi.systemtest.utils.kafkaUtils.KafkaUtils.generateRandomNameOfKafka;
 import static io.strimzi.test.k8s.KubeClusterResource.kubeClient;
 
@@ -56,17 +55,17 @@ class RecoveryST extends AbstractST {
     void testRecoveryFromKafkaStrimziPodSetDeletion() {
         // kafka cluster already deployed
         String kafkaName = KafkaResource.getStrimziPodSetName(sharedClusterName);
-        String kafkaUid = StrimziPodSetUtils.getStrimziPodSetUID(Constants.TEST_SUITE_NAMESPACE, kafkaName);
+        String kafkaUid = StrimziPodSetUtils.getStrimziPodSetUID(Environment.TEST_SUITE_NAMESPACE, kafkaName);
 
         kubeClient().getClient().apps().deployments().inNamespace(clusterOperator.getDeploymentNamespace()).withName(clusterOperator.getClusterOperatorName()).withTimeoutInMillis(600_000L).scale(0);
-        StrimziPodSetUtils.deleteStrimziPodSet(Constants.TEST_SUITE_NAMESPACE, kafkaName);
+        StrimziPodSetUtils.deleteStrimziPodSet(Environment.TEST_SUITE_NAMESPACE, kafkaName);
 
         PodUtils.waitForPodsWithPrefixDeletion(kafkaName);
         kubeClient().getClient().apps().deployments().inNamespace(clusterOperator.getDeploymentNamespace()).withName(clusterOperator.getClusterOperatorName()).withTimeoutInMillis(600_000L).scale(1);
 
         LOGGER.info("Waiting for recovery {}", kafkaName);
-        StrimziPodSetUtils.waitForStrimziPodSetRecovery(Constants.TEST_SUITE_NAMESPACE, kafkaName, kafkaUid);
-        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Constants.TEST_SUITE_NAMESPACE, kafkaName, KafkaResources.kafkaStatefulSetName(sharedClusterName), KAFKA_REPLICAS);
+        StrimziPodSetUtils.waitForStrimziPodSetRecovery(Environment.TEST_SUITE_NAMESPACE, kafkaName, kafkaUid);
+        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Environment.TEST_SUITE_NAMESPACE, kafkaName, KafkaResources.kafkaStatefulSetName(sharedClusterName), KAFKA_REPLICAS);
     }
 
     @IsolatedTest("We need for each test case its own Cluster Operator")
@@ -74,17 +73,17 @@ class RecoveryST extends AbstractST {
     void testRecoveryFromZookeeperStrimziPodSetDeletion() {
         // kafka cluster already deployed
         String zookeeperName = KafkaResources.zookeeperStatefulSetName(sharedClusterName);
-        String zookeeperUid = StrimziPodSetUtils.getStrimziPodSetUID(Constants.TEST_SUITE_NAMESPACE, zookeeperName);
+        String zookeeperUid = StrimziPodSetUtils.getStrimziPodSetUID(Environment.TEST_SUITE_NAMESPACE, zookeeperName);
 
         kubeClient().getClient().apps().deployments().inNamespace(clusterOperator.getDeploymentNamespace()).withName(clusterOperator.getClusterOperatorName()).withTimeoutInMillis(600_000L).scale(0);
-        StrimziPodSetUtils.deleteStrimziPodSet(Constants.TEST_SUITE_NAMESPACE, zookeeperName);
+        StrimziPodSetUtils.deleteStrimziPodSet(Environment.TEST_SUITE_NAMESPACE, zookeeperName);
 
         PodUtils.waitForPodsWithPrefixDeletion(zookeeperName);
         kubeClient().getClient().apps().deployments().inNamespace(clusterOperator.getDeploymentNamespace()).withName(clusterOperator.getClusterOperatorName()).withTimeoutInMillis(600_000L).scale(1);
 
         LOGGER.info("Waiting for recovery {}", zookeeperName);
-        StrimziPodSetUtils.waitForStrimziPodSetRecovery(Constants.TEST_SUITE_NAMESPACE, zookeeperName, zookeeperUid);
-        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Constants.TEST_SUITE_NAMESPACE, zookeeperName, zookeeperName, ZOOKEEPER_REPLICAS);
+        StrimziPodSetUtils.waitForStrimziPodSetRecovery(Environment.TEST_SUITE_NAMESPACE, zookeeperName, zookeeperUid);
+        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Environment.TEST_SUITE_NAMESPACE, zookeeperName, zookeeperName, ZOOKEEPER_REPLICAS);
     }
 
     @IsolatedTest("We need for each test case its own Cluster Operator")
@@ -100,7 +99,7 @@ class RecoveryST extends AbstractST {
         kubeClient().deleteService(kafkaServiceName);
 
         LOGGER.info("Waiting for creation {}", kafkaServiceName);
-        ServiceUtils.waitForServiceRecovery(Constants.TEST_SUITE_NAMESPACE, kafkaServiceName, kafkaServiceUid);
+        ServiceUtils.waitForServiceRecovery(Environment.TEST_SUITE_NAMESPACE, kafkaServiceName, kafkaServiceUid);
         verifyStabilityBySendingAndReceivingMessages(extensionContext, testStorage);
     }
 
@@ -118,7 +117,7 @@ class RecoveryST extends AbstractST {
         kubeClient().deleteService(zookeeperServiceName);
 
         LOGGER.info("Waiting for creation {}", zookeeperServiceName);
-        ServiceUtils.waitForServiceRecovery(Constants.TEST_SUITE_NAMESPACE, zookeeperServiceName, zookeeperServiceUid);
+        ServiceUtils.waitForServiceRecovery(Environment.TEST_SUITE_NAMESPACE, zookeeperServiceName, zookeeperServiceUid);
 
         verifyStabilityBySendingAndReceivingMessages(extensionContext, testStorage);
     }
@@ -136,7 +135,7 @@ class RecoveryST extends AbstractST {
         kubeClient().deleteService(kafkaHeadlessServiceName);
 
         LOGGER.info("Waiting for creation {}", kafkaHeadlessServiceName);
-        ServiceUtils.waitForServiceRecovery(Constants.TEST_SUITE_NAMESPACE, kafkaHeadlessServiceName, kafkaHeadlessServiceUid);
+        ServiceUtils.waitForServiceRecovery(Environment.TEST_SUITE_NAMESPACE, kafkaHeadlessServiceName, kafkaHeadlessServiceUid);
 
         verifyStabilityBySendingAndReceivingMessages(extensionContext, testStorage);
     }
@@ -155,21 +154,16 @@ class RecoveryST extends AbstractST {
         kubeClient().deleteService(zookeeperHeadlessServiceName);
 
         LOGGER.info("Waiting for creation {}", zookeeperHeadlessServiceName);
-        ServiceUtils.waitForServiceRecovery(Constants.TEST_SUITE_NAMESPACE, zookeeperHeadlessServiceName, zookeeperHeadlessServiceUid);
+        ServiceUtils.waitForServiceRecovery(Environment.TEST_SUITE_NAMESPACE, zookeeperHeadlessServiceName, zookeeperHeadlessServiceUid);
 
         verifyStabilityBySendingAndReceivingMessages(extensionContext, testStorage);
     }
 
     /**
-     * The main difference between this test and KafkaRollerST#testKafkaPodPending()
-     * is that in this test, we are deploying Kafka cluster with an impossible memory request,
-     * but in the KafkaRollerST#testKafkaPodPending()
-     * we first deploy Kafka cluster with a correct configuration, then change the configuration to an unschedulable one, waiting
-     * for one Kafka pod to be in the `Pending` phase. In this test, all 3 Kafka pods are `Pending`. After we
+     * We are deploying Kafka cluster with an impossible memory request, all 3 Kafka pods are `Pending`. After we
      * check that Kafka pods are stable in `Pending` phase (for one minute), we change the memory request so that the pods are again schedulable
      * and wait until the Kafka cluster recovers and becomes `Ready`.
      *
-     * @see {@link KafkaRollerST#testKafkaPodPending(ExtensionContext)}
      */
     @IsolatedTest("We need for each test case its own Cluster Operator")
     void testRecoveryFromImpossibleMemoryRequest() {
@@ -184,26 +178,26 @@ class RecoveryST extends AbstractST {
 
         if (Environment.isKafkaNodePoolsEnabled()) {
             KafkaNodePoolResource.replaceKafkaNodePoolResourceInSpecificNamespace(KafkaResource.getNodePoolName(sharedClusterName), knp ->
-                knp.getSpec().setResources(resourceReq), Constants.TEST_SUITE_NAMESPACE);
+                knp.getSpec().setResources(resourceReq), Environment.TEST_SUITE_NAMESPACE);
         } else {
-            KafkaResource.replaceKafkaResourceInSpecificNamespace(sharedClusterName, k -> k.getSpec().getKafka().setResources(resourceReq), Constants.TEST_SUITE_NAMESPACE);
+            KafkaResource.replaceKafkaResourceInSpecificNamespace(sharedClusterName, k -> k.getSpec().getKafka().setResources(resourceReq), Environment.TEST_SUITE_NAMESPACE);
         }
 
-        PodUtils.waitForPendingPod(Constants.TEST_SUITE_NAMESPACE, kafkaSsName);
-        PodUtils.verifyThatPendingPodsAreStable(Constants.TEST_SUITE_NAMESPACE, kafkaSsName);
+        PodUtils.waitForPendingPod(Environment.TEST_SUITE_NAMESPACE, kafkaSsName);
+        PodUtils.verifyThatPendingPodsAreStable(Environment.TEST_SUITE_NAMESPACE, kafkaSsName);
 
         requests.put("memory", new Quantity("512Mi"));
         resourceReq.setRequests(requests);
 
         if (Environment.isKafkaNodePoolsEnabled()) {
             KafkaNodePoolResource.replaceKafkaNodePoolResourceInSpecificNamespace(KafkaResource.getNodePoolName(sharedClusterName), knp ->
-                knp.getSpec().setResources(resourceReq), Constants.TEST_SUITE_NAMESPACE);
+                knp.getSpec().setResources(resourceReq), Environment.TEST_SUITE_NAMESPACE);
         } else {
-            KafkaResource.replaceKafkaResourceInSpecificNamespace(sharedClusterName, k -> k.getSpec().getKafka().setResources(resourceReq), Constants.TEST_SUITE_NAMESPACE);
+            KafkaResource.replaceKafkaResourceInSpecificNamespace(sharedClusterName, k -> k.getSpec().getKafka().setResources(resourceReq), Environment.TEST_SUITE_NAMESPACE);
         }
 
-        RollingUpdateUtils.waitForComponentAndPodsReady(Constants.TEST_SUITE_NAMESPACE, kafkaSelector, KAFKA_REPLICAS);
-        KafkaUtils.waitForKafkaReady(Constants.TEST_SUITE_NAMESPACE, sharedClusterName);
+        RollingUpdateUtils.waitForComponentAndPodsReady(Environment.TEST_SUITE_NAMESPACE, kafkaSelector, KAFKA_REPLICAS);
+        KafkaUtils.waitForKafkaReady(Environment.TEST_SUITE_NAMESPACE, sharedClusterName);
     }
 
     private void verifyStabilityBySendingAndReceivingMessages(ExtensionContext extensionContext, TestStorage testStorage) {
@@ -238,18 +232,18 @@ class RecoveryST extends AbstractST {
         kafkaPodList.subList(0, kafkaPodList.size() - 1).forEach(pod -> kubeClient().deletePod(pod));
         zkPodList.subList(0, zkPodList.size() - 1).forEach(pod -> kubeClient().deletePod(pod));
 
-        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Constants.TEST_SUITE_NAMESPACE, kafkaStrimziPodSet, kafkaName, KAFKA_REPLICAS);
-        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Constants.TEST_SUITE_NAMESPACE, zkName, zkName, ZOOKEEPER_REPLICAS);
-        KafkaUtils.waitForKafkaReady(Constants.TEST_SUITE_NAMESPACE, sharedClusterName);
+        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Environment.TEST_SUITE_NAMESPACE, kafkaStrimziPodSet, kafkaName, KAFKA_REPLICAS);
+        StrimziPodSetUtils.waitForAllStrimziPodSetAndPodsReady(Environment.TEST_SUITE_NAMESPACE, zkName, zkName, ZOOKEEPER_REPLICAS);
+        KafkaUtils.waitForKafkaReady(Environment.TEST_SUITE_NAMESPACE, sharedClusterName);
     }
 
     @BeforeEach
     void setup(ExtensionContext extensionContext) {
         this.clusterOperator = this.clusterOperator.defaultInstallation(extensionContext)
-            .withReconciliationInterval(Constants.CO_OPERATION_TIMEOUT_SHORT)
+            .withReconciliationInterval(TestConstants.CO_OPERATION_TIMEOUT_SHORT)
             .createInstallation()
             .runInstallation();
-        cluster.setNamespace(Constants.TEST_SUITE_NAMESPACE);
+        cluster.setNamespace(Environment.TEST_SUITE_NAMESPACE);
 
         sharedClusterName = generateRandomNameOfKafka("recovery-cluster");
 

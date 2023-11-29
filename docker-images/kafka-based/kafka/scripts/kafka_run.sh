@@ -60,9 +60,13 @@ if [ "$STRIMZI_KRAFT_ENABLED" = "true" ]; then
   KRAFT_LOG_DIR=$(grep "log\.dirs=" /tmp/strimzi.properties | sed "s/log\.dirs=*//")
 
   if [ ! -f "$KRAFT_LOG_DIR/meta.properties" ]; then
-    echo "Formatting Kraft storage"
+    STRIMZI_CLUSTER_ID=$(cat "$KAFKA_HOME/custom-config/cluster.id")
+    METADATA_VERSION=$(cat "$KAFKA_HOME/custom-config/metadata.version")
+    echo "Formatting Kraft storage with cluster ID $STRIMZI_CLUSTER_ID and metadata version $METADATA_VERSION"
     mkdir -p "$KRAFT_LOG_DIR"
-    ./bin/kafka-storage.sh format -t "$STRIMZI_CLUSTER_ID" -c /tmp/strimzi.properties
+    # Using "=" to assign arguments for the Kafka storage tool to avoid issues if the generated
+    # cluster ID starts with a "-". See https://issues.apache.org/jira/browse/KAFKA-15754
+    ./bin/kafka-storage.sh format -t="$STRIMZI_CLUSTER_ID" -r="$METADATA_VERSION" -c=/tmp/strimzi.properties
   else
     echo "Kraft storage is already formatted"
   fi

@@ -31,13 +31,7 @@ public interface Zk {
      * @return  Future completes if the Zookeeper instance is created successfully.
      */
     static Future<Zk> create(Vertx vertx, String zkConnectionString, int sessionTimeout, int connectionTimeout) {
-        return vertx.executeBlocking(f -> {
-            try {
-                f.complete(createSync(vertx, zkConnectionString, sessionTimeout, connectionTimeout));
-            } catch (Throwable t) {
-                f.fail(t);
-            }
-        });
+        return vertx.executeBlocking(() -> createSync(vertx, zkConnectionString, sessionTimeout, connectionTimeout));
     }
 
     /**

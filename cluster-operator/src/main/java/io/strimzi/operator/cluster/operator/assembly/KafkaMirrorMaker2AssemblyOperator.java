@@ -34,23 +34,19 @@ import io.strimzi.api.kafka.model.tracing.OpenTelemetryTracing;
 import io.strimzi.operator.cluster.ClusterOperatorConfig;
 import io.strimzi.operator.cluster.PlatformFeaturesAvailability;
 import io.strimzi.operator.cluster.model.AuthenticationUtils;
-import io.strimzi.operator.common.model.InvalidResourceException;
 import io.strimzi.operator.cluster.model.KafkaConnectCluster;
 import io.strimzi.operator.cluster.model.KafkaMirrorMaker2Cluster;
-import io.strimzi.operator.cluster.model.KafkaVersion;
 import io.strimzi.operator.cluster.model.ModelUtils;
+import io.strimzi.operator.cluster.model.PodSetUtils;
 import io.strimzi.operator.cluster.operator.resource.ResourceOperatorSupplier;
-import io.strimzi.operator.cluster.model.SharedEnvironmentProvider;
 import io.strimzi.operator.common.Annotations;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.ReconciliationException;
 import io.strimzi.operator.common.ReconciliationLogger;
 import io.strimzi.operator.common.Util;
 import io.strimzi.operator.common.VertxUtil;
-import io.strimzi.operator.common.operator.resource.DeploymentOperator;
-import io.strimzi.operator.common.operator.resource.PodOperator;
+import io.strimzi.operator.common.model.InvalidResourceException;
 import io.strimzi.operator.common.model.StatusUtils;
-import io.strimzi.operator.common.operator.resource.StrimziPodSetOperator;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -87,12 +83,6 @@ import static java.util.Collections.emptyMap;
  */
 public class KafkaMirrorMaker2AssemblyOperator extends AbstractConnectOperator<KubernetesClient, KafkaMirrorMaker2, KafkaMirrorMaker2List, Resource<KafkaMirrorMaker2>, KafkaMirrorMaker2Spec, KafkaMirrorMaker2Status> {
     private static final ReconciliationLogger LOGGER = ReconciliationLogger.create(KafkaMirrorMaker2AssemblyOperator.class.getName());
-    private final DeploymentOperator deploymentOperations;
-    private final StrimziPodSetOperator podSetOperations;
-    private final PodOperator podOperations;
-    private final KafkaVersion.Lookup versions;
-    private final boolean stableIdentities;
-    private final SharedEnvironmentProvider sharedEnvironmentProvider;
 
     private static final String MIRRORMAKER2_CONNECTOR_PACKAGE = "org.apache.kafka.connect.mirror";
     private static final String MIRRORMAKER2_SOURCE_CONNECTOR_SUFFIX = ".MirrorSourceConnector";
@@ -143,12 +133,6 @@ public class KafkaMirrorMaker2AssemblyOperator extends AbstractConnectOperator<K
                                         ClusterOperatorConfig config,
                                         Function<Vertx, KafkaConnectApi> connectClientProvider) {
         super(vertx, pfa, KafkaMirrorMaker2.RESOURCE_KIND, supplier.mirrorMaker2Operator, supplier, config, connectClientProvider, KafkaConnectCluster.REST_API_PORT);
-        this.deploymentOperations = supplier.deploymentOperations;
-        this.podSetOperations = supplier.strimziPodSetOperator;
-        this.podOperations = supplier.podOperations;
-        this.versions = config.versions();
-        this.stableIdentities = config.featureGates().stableConnectIdentitiesEnabled();
-        this.sharedEnvironmentProvider = supplier.sharedEnvironmentProvider;
     }
 
     @Override
@@ -182,8 +166,9 @@ public class KafkaMirrorMaker2AssemblyOperator extends AbstractConnectOperator<K
                 .compose(i -> connectServiceAccount(reconciliation, namespace, KafkaMirrorMaker2Resources.serviceAccountName(mirrorMaker2Cluster.getCluster()), mirrorMaker2Cluster))
                 .compose(i -> connectInitClusterRoleBinding(reconciliation, initCrbName, initCrb))
                 .compose(i -> connectNetworkPolicy(reconciliation, namespace, mirrorMaker2Cluster, true))
+                .compose(i -> manualRollingUpdate(reconciliation, mirrorMaker2Cluster))
                 .compose(i -> serviceOperations.reconcile(reconciliation, namespace, mirrorMaker2Cluster.getServiceName(), mirrorMaker2Cluster.generateService()))
-                .compose(i -> serviceOperations.reconcile(reconciliation, namespace, mirrorMaker2Cluster.getComponentName(), stableIdentities ? mirrorMaker2Cluster.generateHeadlessService() : null))
+                .compose(i -> serviceOperations.reconcile(reconciliation, namespace, mirrorMaker2Cluster.getComponentName(), mirrorMaker2Cluster.generateHeadlessService()))
                 .compose(i -> generateMetricsAndLoggingConfigMap(reconciliation, namespace, mirrorMaker2Cluster))
                 .compose(logAndMetricsConfigMap -> {
                     String logging = logAndMetricsConfigMap.getData().get(mirrorMaker2Cluster.logging().configMapKey());
@@ -192,41 +177,28 @@ public class KafkaMirrorMaker2AssemblyOperator extends AbstractConnectOperator<K
                     return configMapOperations.reconcile(reconciliation, namespace, logAndMetricsConfigMap.getMetadata().getName(), logAndMetricsConfigMap);
                 })
                 .compose(i -> ReconcilerUtils.reconcileJmxSecret(reconciliation, secretOperations, mirrorMaker2Cluster))
-                .compose(i -> podDisruptionBudgetOperator.reconcile(reconciliation, namespace, mirrorMaker2Cluster.getComponentName(), mirrorMaker2Cluster.generatePodDisruptionBudget(stableIdentities)))
+                .compose(i -> podDisruptionBudgetOperator.reconcile(reconciliation, namespace, mirrorMaker2Cluster.getComponentName(), mirrorMaker2Cluster.generatePodDisruptionBudget()))
                 .compose(i -> generateAuthHash(namespace, kafkaMirrorMaker2.getSpec()))
                 .compose(hash -> {
                     podAnnotations.put(Annotations.ANNO_STRIMZI_AUTH_HASH, Integer.toString(hash));
                     return Future.succeededFuture();
                 })
-                .compose(i -> {
-                    KafkaConnectMigration migration = new KafkaConnectMigration(
-                            reconciliation,
-                            mirrorMaker2Cluster,
-                            null,
-                            podAnnotations,
-                            operationTimeoutMs,
-                            pfa.isOpenshift(),
-                            imagePullPolicy,
-                            imagePullSecrets,
-                            null,
-                            deploymentOperations,
-                            podSetOperations,
-                            podOperations
-                    );
-
-                    if (stableIdentities)   {
-                        return migration.migrateFromDeploymentToStrimziPodSets(deployment.get(), podSet.get());
-                    } else {
-                        return migration.migrateFromStrimziPodSetsToDeployment(deployment.get(), podSet.get());
-                    }
-                })
-                .compose(i -> {
-                    if (stableIdentities)   {
-                        return reconcilePodSet(reconciliation, mirrorMaker2Cluster, podAnnotations);
-                    } else {
-                        return reconcileDeployment(reconciliation, mirrorMaker2Cluster, podAnnotations, hasZeroReplicas);
-                    }
-                })
+                .compose(i -> new KafkaConnectMigration(
+                                reconciliation,
+                                mirrorMaker2Cluster,
+                                null,
+                                podAnnotations,
+                                operationTimeoutMs,
+                                pfa.isOpenshift(),
+                                imagePullPolicy,
+                                imagePullSecrets,
+                                null,
+                                deploymentOperations,
+                                podSetOperations,
+                                podOperations
+                        )
+                        .migrateFromDeploymentToStrimziPodSets(deployment.get(), podSet.get()))
+                .compose(i -> reconcilePodSet(reconciliation, mirrorMaker2Cluster, podAnnotations))
                 .compose(i -> hasZeroReplicas ? Future.succeededFuture() : reconcileConnectors(reconciliation, kafkaMirrorMaker2, mirrorMaker2Cluster, kafkaMirrorMaker2Status, desiredLogging.get()))
                 .map((Void) null)
                 .onComplete(reconciliationResult -> {
@@ -265,24 +237,13 @@ public class KafkaMirrorMaker2AssemblyOperator extends AbstractConnectOperator<K
                 });
     }
 
-    private Future<Void> reconcileDeployment(Reconciliation reconciliation,
-                                             KafkaMirrorMaker2Cluster mirrorMaker2Cluster,
-                                             Map<String, String> podAnnotations,
-                                             boolean hasZeroReplicas)  {
-        return deploymentOperations.scaleDown(reconciliation, reconciliation.namespace(), mirrorMaker2Cluster.getComponentName(), mirrorMaker2Cluster.getReplicas(), operationTimeoutMs)
-                .compose(i -> deploymentOperations.reconcile(reconciliation, reconciliation.namespace(), mirrorMaker2Cluster.getComponentName(), mirrorMaker2Cluster.generateDeployment(mirrorMaker2Cluster.getReplicas(), null, podAnnotations, pfa.isOpenshift(), imagePullPolicy, imagePullSecrets, null)))
-                .compose(i -> deploymentOperations.scaleUp(reconciliation, reconciliation.namespace(), mirrorMaker2Cluster.getComponentName(), mirrorMaker2Cluster.getReplicas(), operationTimeoutMs))
-                .compose(i -> deploymentOperations.waitForObserved(reconciliation, reconciliation.namespace(), mirrorMaker2Cluster.getComponentName(), 1_000, operationTimeoutMs))
-                .compose(i -> hasZeroReplicas ? Future.succeededFuture() : deploymentOperations.readiness(reconciliation, reconciliation.namespace(), mirrorMaker2Cluster.getComponentName(), 1_000, operationTimeoutMs));
-    }
-
     private Future<Void> reconcilePodSet(Reconciliation reconciliation,
                                          KafkaConnectCluster connect,
                                          Map<String, String> podAnnotations)  {
         return podSetOperations.reconcile(reconciliation, reconciliation.namespace(), connect.getComponentName(), connect.generatePodSet(connect.getReplicas(), null, podAnnotations, pfa.isOpenshift(), imagePullPolicy, imagePullSecrets, null))
                 .compose(reconciliationResult -> {
                     KafkaConnectRoller roller = new KafkaConnectRoller(reconciliation, connect, operationTimeoutMs, podOperations);
-                    return roller.maybeRoll(reconciliationResult.resource());
+                    return roller.maybeRoll(PodSetUtils.podNames(reconciliationResult.resource()), pod -> KafkaConnectRoller.needsRollingRestart(reconciliationResult.resource(), pod));
                 })
                 .compose(i -> podSetOperations.readiness(reconciliation, reconciliation.namespace(), connect.getComponentName(), 1_000, operationTimeoutMs));
     }

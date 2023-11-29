@@ -16,7 +16,6 @@ import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.ReconciliationLogger;
 import io.strimzi.operator.common.model.Labels;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 
 import java.util.List;
@@ -79,34 +78,27 @@ public abstract class AbstractNonNamespacedResourceOperator<C extends Kubernetes
                     + desired.getMetadata().getName());
         }
 
-        Promise<ReconcileResult<T>> promise = Promise.promise();
-        vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
-            future -> {
-                T current = operation().withName(name).get();
-                if (desired != null) {
-                    if (current == null) {
-                        LOGGER.debugCr(reconciliation, "{} {} does not exist, creating it", resourceKind, name);
-                        internalCreate(reconciliation, name, desired).onComplete(future);
+        return getAsync(name)
+                .compose(current -> {
+                    if (desired != null) {
+                        if (current == null) {
+                            LOGGER.debugCr(reconciliation, "{} {} does not exist, creating it", resourceKind, name);
+                            return internalCreate(reconciliation, name, desired);
+                        } else {
+                            LOGGER.debugCr(reconciliation, "{} {} already exists, updating it", resourceKind, name);
+                            return internalUpdate(reconciliation, name, current, desired);
+                        }
                     } else {
-                        LOGGER.debugCr(reconciliation, "{} {} already exists, updating it", resourceKind, name);
-                        internalUpdate(reconciliation, name, current, desired).onComplete(future);
+                        if (current != null) {
+                            // Deletion is desired
+                            LOGGER.debugCr(reconciliation, "{} {} exist, deleting it", resourceKind, name);
+                            return internalDelete(reconciliation, name);
+                        } else {
+                            LOGGER.debugCr(reconciliation, "{} {} does not exist, noop", resourceKind, name);
+                            return Future.succeededFuture(ReconcileResult.noop(null));
+                        }
                     }
-                } else {
-                    if (current != null) {
-                        // Deletion is desired
-                        LOGGER.debugCr(reconciliation, "{} {} exist, deleting it", resourceKind, name);
-                        internalDelete(reconciliation, name).onComplete(future);
-                    } else {
-                        LOGGER.debugCr(reconciliation, "{} {} does not exist, noop", resourceKind, name);
-                        future.complete(ReconcileResult.noop(null));
-                    }
-                }
-
-            },
-            false,
-            promise
-        );
-        return promise.future();
+                });
     }
 
     /**
@@ -172,7 +164,7 @@ public abstract class AbstractNonNamespacedResourceOperator<C extends Kubernetes
     }
 
     /**
-     * Method for patching or replacing a resource. By default is using JSON-type patch. Overriding this method can be
+     * Method for patching or replacing a resource. By default, is using JSON-type patch. Overriding this method can be
      * used to use replace instead of patch or different patch strategies.
      *
      * @param name          Name of the resource

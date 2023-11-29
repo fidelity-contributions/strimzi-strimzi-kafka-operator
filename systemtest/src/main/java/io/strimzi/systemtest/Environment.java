@@ -17,6 +17,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
@@ -149,6 +151,13 @@ public class Environment {
      */
     public static final String CONNECT_BUILD_IMAGE_PATH_ENV = "CONNECT_BUILD_IMAGE_PATH";
     public static final String CONNECT_BUILD_REGISTRY_SECRET_ENV = "CONNECT_BUILD_REGISTRY_SECRET";
+    public static final String IP_FAMILY_ENV = "IP_FAMILY";
+
+    /**
+     * Connect image with file sink plugin
+     */
+    public static final String CONNECT_IMAGE_WITH_FILE_SINK_PLUGIN_ENV = "CONNECT_IMAGE_WITH_FILE_SINK_PLUGIN";
+    public static final String CONNECT_IMAGE_WITH_FILE_SINK_PLUGIN = getOrDefault(CONNECT_IMAGE_WITH_FILE_SINK_PLUGIN_ENV, "");
 
     /**
      * Defaults
@@ -159,10 +168,10 @@ public class Environment {
     public static final String TEST_CLIENTS_ORG_DEFAULT = "strimzi-test-clients";
     private static final String TEST_LOG_DIR_DEFAULT = TestUtils.USER_PATH + "/../systemtest/target/logs/";
     private static final String STRIMZI_LOG_LEVEL_DEFAULT = "DEBUG";
-    public static final String COMPONENTS_IMAGE_PULL_POLICY_ENV_DEFAULT = Constants.IF_NOT_PRESENT_IMAGE_PULL_POLICY;
-    public static final String OPERATOR_IMAGE_PULL_POLICY_ENV_DEFAULT = Constants.ALWAYS_IMAGE_PULL_POLICY;
+    public static final String COMPONENTS_IMAGE_PULL_POLICY_ENV_DEFAULT = TestConstants.IF_NOT_PRESENT_IMAGE_PULL_POLICY;
+    public static final String OPERATOR_IMAGE_PULL_POLICY_ENV_DEFAULT = TestConstants.ALWAYS_IMAGE_PULL_POLICY;
     public static final String OLM_OPERATOR_NAME_DEFAULT = "strimzi-kafka-operator";
-    public static final String OLM_OPERATOR_DEPLOYMENT_NAME_DEFAULT = Constants.STRIMZI_DEPLOYMENT_NAME;
+    public static final String OLM_OPERATOR_DEPLOYMENT_NAME_DEFAULT = TestConstants.STRIMZI_DEPLOYMENT_NAME;
     public static final String OLM_SOURCE_NAME_DEFAULT = "community-operators";
     public static final String OLM_APP_BUNDLE_PREFIX_DEFAULT = "strimzi-cluster-operator";
     private static final boolean DEFAULT_TO_DENY_NETWORK_POLICIES_DEFAULT = true;
@@ -172,9 +181,14 @@ public class Environment {
     private static final String RESOURCE_ALLOCATION_STRATEGY_DEFAULT = "SHARE_MEMORY_FOR_ALL_COMPONENTS";
 
     private static final String ST_KAFKA_VERSION_DEFAULT = TestKafkaVersion.getDefaultSupportedKafkaVersion();
-    private static final String ST_CLIENTS_KAFKA_VERSION_DEFAULT = "3.4.0";
-    public static final String TEST_CLIENTS_VERSION_DEFAULT = "0.5.2";
+    private static final String ST_CLIENTS_KAFKA_VERSION_DEFAULT = "3.6.0";
+    public static final String TEST_CLIENTS_VERSION_DEFAULT = "0.6.0";
     public static final String ST_FILE_PLUGIN_URL_DEFAULT = "https://repo1.maven.org/maven2/org/apache/kafka/connect-file/" + ST_KAFKA_VERSION_DEFAULT + "/connect-file-" + ST_KAFKA_VERSION_DEFAULT + ".jar";
+    public static final String OLM_OPERATOR_VERSION_DEFAULT = "0.38.0";
+
+    public static final String IP_FAMILY_DEFAULT = "ipv4";
+    public static final String IP_FAMILY_VERSION_6 = "ipv6";
+    public static final String IP_FAMILY_DUAL_STACK = "dual";
 
     /**
      * Set values
@@ -195,11 +209,7 @@ public class Environment {
     // variables for kafka client app images
     private static final String TEST_CLIENTS_VERSION = getOrDefault(TEST_CLIENTS_VERSION_ENV, TEST_CLIENTS_VERSION_DEFAULT);
     private static final String TEST_CLIENTS_IMAGE_DEFAULT = STRIMZI_REGISTRY_DEFAULT + "/" + TEST_CLIENTS_ORG_DEFAULT + "/test-clients:" + TEST_CLIENTS_VERSION + "-kafka-" + CLIENTS_KAFKA_VERSION;
-    // Admin client is not part of the test-clients, but the changes need to be made in ThrottlingQuotaST to remove this image
-    private static final String TEST_ADMIN_IMAGE_DEFAULT = STRIMZI_REGISTRY_DEFAULT + "/" + TEST_CLIENTS_ORG_DEFAULT + "/test-client-kafka-admin:0.4.2-kafka-3.3.1";
     public static final String TEST_CLIENTS_IMAGE = getOrDefault(TEST_CLIENTS_IMAGE_ENV, TEST_CLIENTS_IMAGE_DEFAULT);
-    public static final String TEST_ADMIN_IMAGE = getOrDefault(TEST_ADMIN_IMAGE_ENV, TEST_ADMIN_IMAGE_DEFAULT);
-
     private static final String SCRAPER_IMAGE_DEFAULT = STRIMZI_REGISTRY + "/" + STRIMZI_ORG + "/kafka:" + STRIMZI_TAG + "-kafka-" + ST_KAFKA_VERSION;
     public static final String SCRAPER_IMAGE = getOrDefault(SCRAPER_IMAGE_ENV, SCRAPER_IMAGE_DEFAULT);
 
@@ -215,7 +225,7 @@ public class Environment {
     public static final String OLM_SOURCE_NAME = getOrDefault(OLM_SOURCE_NAME_ENV, OLM_SOURCE_NAME_DEFAULT);
     public static final String OLM_SOURCE_NAMESPACE = getOrDefault(OLM_SOURCE_NAMESPACE_ENV, OpenShift.OLM_SOURCE_NAMESPACE);
     public static final String OLM_APP_BUNDLE_PREFIX = getOrDefault(OLM_APP_BUNDLE_PREFIX_ENV, OLM_APP_BUNDLE_PREFIX_DEFAULT);
-    public static final String OLM_OPERATOR_LATEST_RELEASE_VERSION = getOrDefault(OLM_OPERATOR_VERSION_ENV, "0.36.0");
+    public static final String OLM_OPERATOR_LATEST_RELEASE_VERSION = getOrDefault(OLM_OPERATOR_VERSION_ENV, OLM_OPERATOR_VERSION_DEFAULT);
     // NetworkPolicy variable
     public static final boolean DEFAULT_TO_DENY_NETWORK_POLICIES = getOrDefault(DEFAULT_TO_DENY_NETWORK_POLICIES_ENV, Boolean::parseBoolean, DEFAULT_TO_DENY_NETWORK_POLICIES_DEFAULT);
     // Cluster Operator installation type variable
@@ -228,6 +238,10 @@ public class Environment {
 
     public static final String CONNECT_BUILD_IMAGE_PATH = getOrDefault(CONNECT_BUILD_IMAGE_PATH_ENV, "");
     public static final String CONNECT_BUILD_REGISTRY_SECRET = getOrDefault(CONNECT_BUILD_REGISTRY_SECRET_ENV, "");
+    public static final String TEST_SUITE_NAMESPACE = Environment.isNamespaceRbacScope() ? TestConstants.CO_NAMESPACE : "test-suite-namespace";
+
+    public static final String IP_FAMILY = getOrDefault(IP_FAMILY_ENV, IP_FAMILY_DEFAULT);
+
 
     private Environment() { }
 
@@ -252,24 +266,20 @@ public class Environment {
         return STRIMZI_RBAC_SCOPE_NAMESPACE.equals(STRIMZI_RBAC_SCOPE);
     }
 
-    public static boolean isStableConnectIdentitiesEnabled() {
-        return !STRIMZI_FEATURE_GATES.contains(Constants.DONT_USE_STABLE_CONNECT_IDENTITIES);
-    }
-
     /**
      * Determine wheter KRaft mode of Kafka cluster is enabled in Cluster Operator or not.
      * @return true if KRaft mode is enabled, otherwise false
      */
     public static boolean isKRaftModeEnabled() {
-        return STRIMZI_FEATURE_GATES.contains(Constants.USE_KRAFT_MODE);
+        return STRIMZI_FEATURE_GATES.contains(TestConstants.USE_KRAFT_MODE);
     }
 
     public static boolean isKafkaNodePoolsEnabled() {
-        return STRIMZI_FEATURE_GATES.contains(Constants.USE_KAFKA_NODE_POOLS);
+        return !STRIMZI_FEATURE_GATES.contains(TestConstants.DONT_USE_KAFKA_NODE_POOLS);
     }
 
     public static boolean isUnidirectionalTopicOperatorEnabled() {
-        return STRIMZI_FEATURE_GATES.contains(Constants.UNIDIRECTIONAL_TOPIC_OPERATOR);
+        return !STRIMZI_FEATURE_GATES.contains(TestConstants.DONT_USE_UNIDIRECTIONAL_TOPIC_OPERATOR);
     }
 
     /**
@@ -287,6 +297,18 @@ public class Environment {
         return Environment.BRIDGE_IMAGE.equals(Environment.BRIDGE_IMAGE_DEFAULT);
     }
 
+    public static boolean isIpv4Family() {
+        return IP_FAMILY.contains(IP_FAMILY_DEFAULT);
+    }
+
+    public static boolean isIpv6Family() {
+        return IP_FAMILY.contains(IP_FAMILY_VERSION_6);
+    }
+
+    public static boolean isDualStackIpFamily() {
+        return IP_FAMILY.contains(IP_FAMILY_DUAL_STACK);
+    }
+
     private static String getOrDefault(String varName, String defaultValue) {
         return getOrDefault(varName, String::toString, defaultValue);
     }
@@ -294,6 +316,20 @@ public class Environment {
     public static String getImageOutputRegistry() {
         if (KubeClusterResource.getInstance().isOpenShift()) {
             return "image-registry.openshift-image-registry.svc:5000";
+        } else if (KubeClusterResource.getInstance().isKind()) {
+            // we will need a hostname of machine
+            String hostname = "";
+            try {
+                if (Environment.isIpv4Family() || Environment.isDualStackIpFamily()) {
+                    hostname = InetAddress.getLocalHost().getHostAddress() + ":5001";
+                } else if (Environment.isIpv6Family()) {
+                    hostname = "myregistry.local:5001";
+                }
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+            LOGGER.info("Using container registry :{}", hostname);
+            return hostname;
         } else {
             LOGGER.warn("For running these tests on K8s you have to have internal registry deployed using `minikube start --insecure-registry '10.0.0.0/24'` and `minikube addons enable registry`");
             Service service = kubeClient("kube-system").getService("registry");

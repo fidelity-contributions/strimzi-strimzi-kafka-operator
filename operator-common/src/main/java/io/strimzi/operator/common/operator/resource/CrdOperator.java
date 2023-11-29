@@ -16,7 +16,6 @@ import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.ReconciliationLogger;
 import io.strimzi.operator.common.VertxUtil;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 
 /**
@@ -56,12 +55,12 @@ public class CrdOperator<C extends KubernetesClient,
     }
 
     /**
-     * The selfClosingWatch does not work for Custom Resources. Therefore we override the method and delete custom
+     * The selfClosingWatch does not work for Custom Resources. Therefore, we override the method and delete custom
      * resources without it.
      *
      * @param namespace Namespace of the resource which should be deleted
      * @param name Name of the resource which should be deleted
-     * @param cascading Defines whether the delete should be cascading or not (e.g. whether a STS deletion should delete pods etc.)
+     * @param cascading Defines whether the deletion should be cascading or not (e.g. whether an STS deletion should delete pods etc.)
      *
      * @return A future which will be completed on the context thread
      *         once the resource has been deleted.
@@ -91,22 +90,18 @@ public class CrdOperator<C extends KubernetesClient,
      * @return  Future which completes when the resource is patched
      */
     public Future<T> patchAsync(Reconciliation reconciliation, T resource) {
-        Promise<T> blockingPromise = Promise.promise();
-
-        vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(future -> {
+        return vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(() -> {
             String namespace = resource.getMetadata().getNamespace();
             String name = resource.getMetadata().getName();
             try {
                 T result = operation().inNamespace(namespace).withName(name).patch(PatchContext.of(PatchType.JSON), resource);
                 LOGGER.debugCr(reconciliation, "{} {} in namespace {} has been patched", resourceKind, name, namespace);
-                future.complete(result);
+                return result;
             } catch (Throwable e) {
                 LOGGER.debugCr(reconciliation, "Caught exception while patching {} {} in namespace {}", resourceKind, name, namespace, e);
-                future.fail(e);
+                throw e;
             }
-        }, true, blockingPromise);
-
-        return blockingPromise.future();
+        });
     }
 
     /**
@@ -118,22 +113,18 @@ public class CrdOperator<C extends KubernetesClient,
      * @return  Future which completes when the status is patched
      */
     public Future<T> updateStatusAsync(Reconciliation reconciliation, T resource) {
-        Promise<T> blockingPromise = Promise.promise();
-
-        vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(future -> {
+        return vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(() -> {
             String namespace = resource.getMetadata().getNamespace();
             String name = resource.getMetadata().getName();
 
             try {
                 T result = operation().inNamespace(namespace).resource(resource).updateStatus();
                 LOGGER.infoCr(reconciliation, "Status of {} {} in namespace {} has been updated", resourceKind, name, namespace);
-                future.complete(result);
+                return result;
             } catch (Throwable e) {
                 LOGGER.debugCr(reconciliation, "Caught exception while updating status of {} {} in namespace {}", resourceKind, name, namespace, e);
-                future.fail(e);
+                throw e;
             }
-        }, true, blockingPromise);
-
-        return blockingPromise.future();
+        });
     }
 }

@@ -12,7 +12,6 @@ import io.strimzi.operator.common.Annotations;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.ReconciliationLogger;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 
 /**
@@ -34,11 +33,6 @@ public abstract class AbstractScalableNamespacedResourceOperator<C extends Kuber
      * Annotation key for indicating the resource generation
      */
     public static final String ANNO_STRIMZI_IO_GENERATION = Annotations.STRIMZI_DOMAIN + "generation";
-
-    /**
-     * Annotation key for deleting both a Pod and a related PVC
-     */
-    public static final String ANNO_STRIMZI_IO_DELETE_POD_AND_PVC = Annotations.STRIMZI_DOMAIN + "delete-pod-and-pvc";
 
     /**
      * Constructor
@@ -70,9 +64,8 @@ public abstract class AbstractScalableNamespacedResourceOperator<C extends Kuber
      *         exist (hence no scaling occurred).
      */
     public Future<Integer> scaleUp(Reconciliation reconciliation, String namespace, String name, int scaleTo, long timeoutMs) {
-        Promise<Integer> promise = Promise.promise();
-        vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
-            future -> {
+        return vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
+            () -> {
                 try {
                     Integer currentScale = currentScale(namespace, name);
                     if (currentScale != null && currentScale < scaleTo) {
@@ -80,23 +73,20 @@ public abstract class AbstractScalableNamespacedResourceOperator<C extends Kuber
                         resource(namespace, name).withTimeoutInMillis(timeoutMs).scale(scaleTo);
                         currentScale = scaleTo;
                     }
-                    future.complete(currentScale);
+
+                    return currentScale;
                 } catch (Exception e) {
                     LOGGER.errorCr(reconciliation, "Caught exception while scaling up", e);
-                    future.fail(e);
+                    throw e;
                 }
-            },
-            false,
-            promise
-        );
-        return promise.future();
+            }, false);
     }
 
     protected abstract Integer currentScale(String namespace, String name);
 
     /**
      * Asynchronously scale down the resource given by {@code namespace} and {@code name} to have the scale given by
-     * {@code scaleTo}, returning a future for the outcome. If the resource does not exists, is has a current
+     * {@code scaleTo}, returning a future for the outcome. If the resource does not exist, it has a current
      * scale &lt;= the given {@code scaleTo} then complete successfully.
      *
      * @param reconciliation    The reconciliation
@@ -110,9 +100,8 @@ public abstract class AbstractScalableNamespacedResourceOperator<C extends Kuber
      *         didn't exist (hence no scaling occurred).
      */
     public Future<Integer> scaleDown(Reconciliation reconciliation, String namespace, String name, int scaleTo, long timeoutMs) {
-        Promise<Integer> promise = Promise.promise();
-        vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
-            future -> {
+        return vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
+            () -> {
                 try {
                     Integer nextReplicas = currentScale(namespace, name);
                     if (nextReplicas != null) {
@@ -122,15 +111,12 @@ public abstract class AbstractScalableNamespacedResourceOperator<C extends Kuber
                             resource(namespace, name).withTimeoutInMillis(timeoutMs).scale(nextReplicas);
                         }
                     }
-                    future.complete(nextReplicas);
+
+                    return nextReplicas;
                 } catch (Exception e) {
                     LOGGER.errorCr(reconciliation, "Caught exception while scaling down", e);
-                    future.fail(e);
+                    throw e;
                 }
-            },
-            false,
-            promise
-        );
-        return promise.future();
+            }, false);
     }
 }

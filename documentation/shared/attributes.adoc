@@ -13,7 +13,7 @@
 :toclevels: 3
 
 //Latest Strimzi version
-:ProductVersion: 0.38.0
+:ProductVersion: 0.39.0
 //Strimzi versions used in upgrades sections
 :ConvertAfterProductVersion: 0.22
 :LastReleaseWithCRDUpgrade: 0.24
@@ -23,15 +23,16 @@
 :KubernetesVersion: 1.21 and later
 
 // Kafka upgrade attributes used in kafka upgrades section
-:DefaultKafkaVersion: 3.5.1
-:KafkaVersionLower: 3.4.0
-:KafkaVersionHigher: 3.5.1
+:DefaultKafkaVersion: 3.6.0
+:DefaultKafkaMetadataVersion: 3.6
+:KafkaVersionLower: 3.5.1
+:KafkaVersionHigher: 3.6.0
 :ExampleImageTagUpgrades: quay.io/strimzi/kafka:{ProductVersion}-kafka-{KafkaVersionHigher}
 
 //inter-broker protocol and log message version
-:DefaultInterBrokerVersion: 3.5
-:InterBrokerVersionLower: 3.4
-:InterBrokerVersionHigher: 3.5
+:DefaultInterBrokerVersion: 3.6
+:InterBrokerVersionLower: 3.5
+:InterBrokerVersionHigher: 3.6
 
 // Source and download links
 :ReleaseDownload: https://github.com/strimzi/strimzi-kafka-operator/releases[GitHub releases page^]
@@ -49,7 +50,7 @@
 :keycloak-server-install-doc: link:https://www.keycloak.org/operator/installation[Installing the Keycloak Operator^]
 :keycloak-authorization-services: link:https://www.keycloak.org/docs/latest/authorization_services/index.html[Keycloak Authorization Services^]
 :oauth-blog: link:https://strimzi.io/2019/10/25/kafka-authentication-using-oauth-2.0.html[Kafka authentication using OAuth 2.0^]
-:OAuthVersion: 0.13.0
+:OAuthVersion: 0.14.0
 :oauth-demo-keycloak: link:https://github.com/strimzi/strimzi-kafka-oauth/tree/{OAuthVersion}/examples[Using Keycloak as the OAuth 2.0 authorization server^]
 :oauth-demo-hydra: link:https://github.com/strimzi/strimzi-kafka-oauth/tree/{OAuthVersion}/examples/docker#running-with-hydra-using-ssl-and-opaque-tokens[Using Hydra as the OAuth 2.0 authorization server^]
 
@@ -83,7 +84,7 @@
 :K8sZoneLabel: link:https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone[topology.kubernetes.io/zone^]
 :K8sDockerSecret: link:https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials[Create a Secret based on existing Docker credentials^]
 :MavenCentral: https://mvnrepository.com/repos/central[Maven Central repository^]
-:Minikube: link:https://kubernetes.io/docs/tasks/tools/install-minikube/[Install and start Minikube]
+:KubeTools: link:https://kubernetes.io/docs/tasks/tools/[Install Tools^]
 :NginxIngressController: link:https://github.com/kubernetes/ingress-nginx[Ingress NGINX Controller for Kubernetes^]
 :NginxIngressControllerTLSPassthrough: link:https://kubernetes.github.io/ingress-nginx/user-guide/tls/#ssl-passthrough[TLS passthrough documentation]
 :KubernetesExternalDNS: link:https://github.com/kubernetes-incubator/external-dns[External DNS^]
@@ -129,7 +130,7 @@
 :DockerOrg: quay.io/strimzi
 :DockerTag: {ProductVersion}
 :BridgeDockerTag: {BridgeVersion}
-:DrainCleanerDockerTag: 0.5.0
+:DrainCleanerDockerTag: 1.0.1
 :DockerRepository: https://quay.io/organization/strimzi[Container Registry^]
 :DockerZookeeper: quay.io/strimzi/kafka:{DockerTag}-kafka-{DefaultKafkaVersion}
 :DockerKafkaImageCurrent: quay.io/strimzi/kafka:{DockerTag}-kafka-{KafkaVersionHigher}

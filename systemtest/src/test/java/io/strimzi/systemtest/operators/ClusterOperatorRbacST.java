@@ -6,7 +6,7 @@ package io.strimzi.systemtest.operators;
 
 import io.strimzi.api.kafka.model.status.Condition;
 import io.strimzi.systemtest.AbstractST;
-import io.strimzi.systemtest.Constants;
+import io.strimzi.systemtest.TestConstants;
 import io.strimzi.systemtest.Environment;
 import io.strimzi.systemtest.annotations.IsolatedTest;
 import io.strimzi.systemtest.enums.ClusterOperatorRBACType;
@@ -25,9 +25,9 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.Arrays;
 
-import static io.strimzi.systemtest.Constants.CONNECT;
-import static io.strimzi.systemtest.Constants.CONNECT_COMPONENTS;
-import static io.strimzi.systemtest.Constants.REGRESSION;
+import static io.strimzi.systemtest.TestConstants.CONNECT;
+import static io.strimzi.systemtest.TestConstants.CONNECT_COMPONENTS;
+import static io.strimzi.systemtest.TestConstants.REGRESSION;
 import static io.strimzi.systemtest.enums.CustomResourceStatus.NotReady;
 import static io.strimzi.systemtest.resources.ResourceManager.cmdKubeClient;
 import static io.strimzi.systemtest.resources.ResourceManager.kubeClient;
@@ -53,26 +53,26 @@ public class ClusterOperatorRbacST extends AbstractST {
         // 060-Deployment
         this.clusterOperator = this.clusterOperator.defaultInstallation(extensionContext)
             .withClusterOperatorRBACType(ClusterOperatorRBACType.NAMESPACE)
-            .withWatchingNamespaces(Constants.TEST_SUITE_NAMESPACE)
-            .withBindingsNamespaces(Arrays.asList(Constants.CO_NAMESPACE, Constants.TEST_SUITE_NAMESPACE))
+            .withWatchingNamespaces(Environment.TEST_SUITE_NAMESPACE)
+            .withBindingsNamespaces(Arrays.asList(TestConstants.CO_NAMESPACE, Environment.TEST_SUITE_NAMESPACE))
             .createInstallation()
             .runBundleInstallation();
 
-        cluster.setNamespace(Constants.TEST_SUITE_NAMESPACE);
+        cluster.setNamespace(Environment.TEST_SUITE_NAMESPACE);
 
-        String coPodName = kubeClient().getClusterOperatorPodName(Constants.CO_NAMESPACE);
+        String coPodName = kubeClient().getClusterOperatorPodName(TestConstants.CO_NAMESPACE);
         LOGGER.info("Deploying Kafka: {}, which should be deployed even the CRBs are not present", clusterName);
 
         resourceManager.createResourceWithWait(extensionContext, KafkaTemplates.kafkaEphemeral(clusterName, 3).build());
         LOGGER.info("CO log should contain some information about ignoring forbidden access to CRB for Kafka");
-        String log = cmdKubeClient().namespace(Constants.CO_NAMESPACE).execInCurrentNamespace(Level.DEBUG, "logs", coPodName).out();
+        String log = cmdKubeClient().namespace(TestConstants.CO_NAMESPACE).execInCurrentNamespace(Level.DEBUG, "logs", coPodName).out();
         assertTrue(log.contains("Kafka(" + cmdKubeClient().namespace() + "/" + clusterName + "): Ignoring forbidden access to ClusterRoleBindings resource which does not seem to be required."));
 
         LOGGER.info("Deploying KafkaConnect: {} without rack awareness, the CR should be deployed without error", clusterName);
-        resourceManager.createResourceWithWait(extensionContext, KafkaConnectTemplates.kafkaConnect(clusterName, Constants.TEST_SUITE_NAMESPACE, 1).build());
+        resourceManager.createResourceWithWait(extensionContext, KafkaConnectTemplates.kafkaConnect(clusterName, Environment.TEST_SUITE_NAMESPACE, 1).build());
 
         LOGGER.info("CO log should contain some information about ignoring forbidden access to CRB for KafkaConnect");
-        log = cmdKubeClient().namespace(Constants.CO_NAMESPACE).execInCurrentNamespace(Level.DEBUG, "logs", coPodName).out();
+        log = cmdKubeClient().namespace(TestConstants.CO_NAMESPACE).execInCurrentNamespace(Level.DEBUG, "logs", coPodName).out();
         assertTrue(log.contains("KafkaConnect(" + cmdKubeClient().namespace() + "/" + clusterName + "): Ignoring forbidden access to ClusterRoleBindings resource which does not seem to be required."));
     }
 
@@ -88,8 +88,8 @@ public class ClusterOperatorRbacST extends AbstractST {
         // 060-Deployment
         this.clusterOperator = this.clusterOperator.defaultInstallation(extensionContext)
             .withClusterOperatorRBACType(ClusterOperatorRBACType.NAMESPACE)
-            .withWatchingNamespaces(Constants.TEST_SUITE_NAMESPACE)
-            .withBindingsNamespaces(Arrays.asList(Constants.CO_NAMESPACE, Constants.TEST_SUITE_NAMESPACE))
+            .withWatchingNamespaces(Environment.TEST_SUITE_NAMESPACE)
+            .withBindingsNamespaces(Arrays.asList(TestConstants.CO_NAMESPACE, Environment.TEST_SUITE_NAMESPACE))
             .createInstallation()
             .runBundleInstallation();
 
@@ -98,7 +98,7 @@ public class ClusterOperatorRbacST extends AbstractST {
         LOGGER.info("Deploying Kafka: {}, which should not be deployed and error should be present in CR status message", clusterName);
         resourceManager.createResourceWithoutWait(extensionContext, KafkaTemplates.kafkaEphemeral(clusterName, 3, 3)
             .editMetadata()
-                .withNamespace(Constants.TEST_SUITE_NAMESPACE)
+                .withNamespace(Environment.TEST_SUITE_NAMESPACE)
             .endMetadata()
             .editOrNewSpec()
                 .editOrNewKafka()
@@ -109,19 +109,19 @@ public class ClusterOperatorRbacST extends AbstractST {
             .endSpec()
             .build());
 
-        KafkaUtils.waitUntilKafkaStatusConditionContainsMessage(clusterName, Constants.TEST_SUITE_NAMESPACE, ".*code=403.*");
-        Condition kafkaStatusCondition = KafkaResource.kafkaClient().inNamespace(Constants.TEST_SUITE_NAMESPACE).withName(clusterName).get().getStatus().getConditions().stream().filter(con -> NotReady.toString().equals(con.getType())).findFirst().orElse(null);
+        KafkaUtils.waitUntilKafkaStatusConditionContainsMessage(clusterName, Environment.TEST_SUITE_NAMESPACE, ".*code=403.*");
+        Condition kafkaStatusCondition = KafkaResource.kafkaClient().inNamespace(Environment.TEST_SUITE_NAMESPACE).withName(clusterName).get().getStatus().getConditions().stream().filter(con -> NotReady.toString().equals(con.getType())).findFirst().orElse(null);
         assertThat(kafkaStatusCondition, is(notNullValue()));
         assertTrue(kafkaStatusCondition.getMessage().contains("code=403"));
 
-        resourceManager.createResourceWithoutWait(extensionContext, KafkaConnectTemplates.kafkaConnect(clusterName, Constants.TEST_SUITE_NAMESPACE, clusterName, 1)
+        resourceManager.createResourceWithoutWait(extensionContext, KafkaConnectTemplates.kafkaConnect(clusterName, Environment.TEST_SUITE_NAMESPACE, clusterName, 1)
             .editSpec()
                 .withNewRack(rackKey)
             .endSpec()
             .build());
 
-        KafkaConnectUtils.waitUntilKafkaConnectStatusConditionContainsMessage(clusterName, Constants.TEST_SUITE_NAMESPACE, ".*code=403.*");
-        Condition kafkaConnectStatusCondition = KafkaConnectResource.kafkaConnectClient().inNamespace(Constants.TEST_SUITE_NAMESPACE).withName(clusterName).get().getStatus().getConditions().stream().filter(con -> NotReady.toString().equals(con.getType())).findFirst().orElse(null);
+        KafkaConnectUtils.waitUntilKafkaConnectStatusConditionContainsMessage(clusterName, Environment.TEST_SUITE_NAMESPACE, ".*code=403.*");
+        Condition kafkaConnectStatusCondition = KafkaConnectResource.kafkaConnectClient().inNamespace(Environment.TEST_SUITE_NAMESPACE).withName(clusterName).get().getStatus().getConditions().stream().filter(con -> NotReady.toString().equals(con.getType())).findFirst().orElse(null);
         assertThat(kafkaConnectStatusCondition, is(notNullValue()));
         assertTrue(kafkaConnectStatusCondition.getMessage().contains("code=403"));
     }

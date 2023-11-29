@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -76,7 +77,7 @@ public class KRaftUtilsTest {
 
         InvalidResourceException ex = assertThrows(InvalidResourceException.class, () -> KRaftUtils.validateKafkaCrForKRaft(spec, false));
 
-        assertThat(ex.getMessage(), is("Kafka configuration is not valid: [Only Unidirectional Topic Operator is supported when the UseKRaft feature gate is enabled. You can enable it using the UnidirectionalTopicOperator feature gate.]"));
+        assertThat(ex.getMessage(), is("Kafka configuration is not valid: [Only Unidirectional Topic Operator is supported when the UseKRaft feature gate is enabled.]"));
     }
 
     @ParallelTest
@@ -111,7 +112,7 @@ public class KRaftUtilsTest {
 
         KRaftUtils.validateEntityOperatorSpec(errors, eo, false);
 
-        assertThat(errors, is(Set.of("Only Unidirectional Topic Operator is supported when the UseKRaft feature gate is enabled. You can enable it using the UnidirectionalTopicOperator feature gate.")));
+        assertThat(errors, is(Set.of("Only Unidirectional Topic Operator is supported when the UseKRaft feature gate is enabled.")));
     }
 
     @ParallelTest
@@ -139,6 +140,20 @@ public class KRaftUtilsTest {
 
         KRaftUtils.validateEntityOperatorSpec(errors, eo, false);
 
-        assertThat(errors, is(Set.of("Only Unidirectional Topic Operator is supported when the UseKRaft feature gate is enabled. You can enable it using the UnidirectionalTopicOperator feature gate.")));
+        assertThat(errors, is(Set.of("Only Unidirectional Topic Operator is supported when the UseKRaft feature gate is enabled.")));
+    }
+
+    @ParallelTest
+    public void testKRaftMetadataVersionValidation()    {
+        // Valid values
+        assertDoesNotThrow(() -> KRaftUtils.validateMetadataVersion("3.6"));
+        assertDoesNotThrow(() -> KRaftUtils.validateMetadataVersion("3.6-IV2"));
+
+        // Invalid Values
+        InvalidResourceException e = assertThrows(InvalidResourceException.class, () -> KRaftUtils.validateMetadataVersion("3.6-IV9"));
+        assertThat(e.getMessage(), containsString("Metadata version 3.6-IV9 is invalid"));
+
+        e = assertThrows(InvalidResourceException.class, () -> KRaftUtils.validateMetadataVersion("3"));
+        assertThat(e.getMessage(), containsString("Metadata version 3 is invalid"));
     }
 }

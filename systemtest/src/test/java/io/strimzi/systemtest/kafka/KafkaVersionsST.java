@@ -10,8 +10,7 @@ import io.strimzi.api.kafka.model.KafkaUser;
 import io.strimzi.api.kafka.model.listener.arraylistener.GenericKafkaListenerBuilder;
 import io.strimzi.api.kafka.model.listener.arraylistener.KafkaListenerType;
 import io.strimzi.systemtest.AbstractST;
-import io.strimzi.systemtest.Constants;
-import io.strimzi.systemtest.Environment;
+import io.strimzi.systemtest.TestConstants;
 import io.strimzi.systemtest.kafkaclients.internalClients.KafkaClients;
 import io.strimzi.systemtest.kafkaclients.internalClients.KafkaClientsBuilder;
 import io.strimzi.systemtest.storage.TestStorage;
@@ -28,8 +27,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import static io.strimzi.systemtest.Constants.KAFKA_SMOKE;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static io.strimzi.systemtest.TestConstants.KAFKA_SMOKE;
 
 @Tag(KAFKA_SMOKE)
 public class KafkaVersionsST extends AbstractST {
@@ -50,9 +48,6 @@ public class KafkaVersionsST extends AbstractST {
     @ParameterizedTest(name = "Kafka version: {0}.version()")
     @MethodSource("io.strimzi.systemtest.utils.TestKafkaVersion#getSupportedKafkaVersions")
     void testKafkaWithVersion(final TestKafkaVersion testKafkaVersion, ExtensionContext extensionContext) {
-        // skip test if KRaft mode is enabled and Kafka version is lower than 3.5.0 - https://github.com/strimzi/strimzi-kafka-operator/issues/8806
-        assumeFalse(Environment.isKRaftModeEnabled() && TestKafkaVersion.compareDottedVersions("3.5.0", testKafkaVersion.version()) == 1);
-
         final TestStorage testStorage = new TestStorage(extensionContext);
 
         final String kafkaUserRead = testStorage.getUsername() + "-read";
@@ -76,7 +71,7 @@ public class KafkaVersionsST extends AbstractST {
                     .endKafkaAuthorizationSimple()
                     .withListeners(
                             new GenericKafkaListenerBuilder()
-                                    .withName(Constants.PLAIN_LISTENER_DEFAULT_NAME)
+                                    .withName(TestConstants.PLAIN_LISTENER_DEFAULT_NAME)
                                     .withPort(9092)
                                     .withType(KafkaListenerType.INTERNAL)
                                     .withTls(false)
@@ -84,7 +79,7 @@ public class KafkaVersionsST extends AbstractST {
                                     .endKafkaListenerAuthenticationScramSha512Auth()
                                     .build(),
                             new GenericKafkaListenerBuilder()
-                                    .withName(Constants.TLS_LISTENER_DEFAULT_NAME)
+                                    .withName(TestConstants.TLS_LISTENER_DEFAULT_NAME)
                                     .withPort(9093)
                                     .withType(KafkaListenerType.INTERNAL)
                                     .withTls(true)

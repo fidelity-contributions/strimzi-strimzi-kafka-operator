@@ -9,6 +9,8 @@ import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.LabelSelector;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.policy.v1.PodDisruptionBudget;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.strimzi.api.kafka.KafkaMirrorMakerList;
 import io.strimzi.api.kafka.model.KafkaMirrorMaker;
 import io.strimzi.api.kafka.model.KafkaMirrorMakerConsumerSpec;
 import io.strimzi.api.kafka.model.KafkaMirrorMakerConsumerSpecBuilder;
@@ -74,6 +76,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("deprecation")
 @ExtendWith(VertxExtension.class)
 public class KafkaMirrorMakerAssemblyOperatorTest {
     private static final KafkaVersion.Lookup VERSIONS = KafkaVersionTestUtils.getKafkaVersionLookup();
@@ -105,7 +108,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
     @Test
     public void testCreateCluster(VertxTestContext context) {
         ResourceOperatorSupplier supplier = ResourceUtils.supplierWithMocks(true);
-        CrdOperator mockMirrorOps = supplier.mirrorMakerOperator;
+        CrdOperator<KubernetesClient, KafkaMirrorMaker, KafkaMirrorMakerList> mockMirrorOps = supplier.mirrorMakerOperator;
         DeploymentOperator mockDcOps = supplier.deploymentOperations;
         PodDisruptionBudgetOperator mockPdbOps = supplier.podDisruptionBudgetOperator;
         ConfigMapOperator mockCmOps = supplier.configMapOperations;
@@ -120,8 +123,6 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         KafkaMirrorMakerProducerSpec producer = new KafkaMirrorMakerProducerSpecBuilder()
                 .withBootstrapServers(producerBootstrapServers)
                 .build();
-        Map<String, Object> metricsCm = new HashMap<>();
-        metricsCm.put("foo", "bar");
         KafkaMirrorMaker kmm = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, kmmName, image, producer, consumer, include);
 
         when(mockMirrorOps.get(kmmNamespace, kmmName)).thenReturn(kmm);
@@ -191,7 +192,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
     @Test
     public void testUpdateClusterNoDiff(VertxTestContext context) {
         ResourceOperatorSupplier supplier = ResourceUtils.supplierWithMocks(true);
-        CrdOperator mockMirrorOps = supplier.mirrorMakerOperator;
+        CrdOperator<KubernetesClient, KafkaMirrorMaker, KafkaMirrorMakerList> mockMirrorOps = supplier.mirrorMakerOperator;
         DeploymentOperator mockDcOps = supplier.deploymentOperations;
         PodDisruptionBudgetOperator mockPdbOps = supplier.podDisruptionBudgetOperator;
         ConfigMapOperator mockCmOps = supplier.configMapOperations;
@@ -215,7 +216,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         when(mockMirrorOps.get(kmmNamespace, kmmName)).thenReturn(kmm);
         when(mockMirrorOps.getAsync(anyString(), anyString())).thenReturn(Future.succeededFuture(kmm));
         when(mockMirrorOps.updateStatusAsync(any(), any(KafkaMirrorMaker.class))).thenReturn(Future.succeededFuture());
-        when(mockDcOps.get(kmmNamespace, mirror.getComponentName())).thenReturn(mirror.generateDeployment(new HashMap<String, String>(), true, null, null));
+        when(mockDcOps.get(kmmNamespace, mirror.getComponentName())).thenReturn(mirror.generateDeployment(new HashMap<>(), true, null, null));
         when(mockDcOps.waitForObserved(any(), anyString(), anyString(), anyLong(), anyLong())).thenReturn(Future.succeededFuture());
 
         ArgumentCaptor<String> dcNameCaptor = ArgumentCaptor.forClass(String.class);
@@ -266,7 +267,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
     @Test
     public void testUpdateCluster(VertxTestContext context) {
         ResourceOperatorSupplier supplier = ResourceUtils.supplierWithMocks(true);
-        CrdOperator mockMirrorOps = supplier.mirrorMakerOperator;
+        CrdOperator<KubernetesClient, KafkaMirrorMaker, KafkaMirrorMakerList> mockMirrorOps = supplier.mirrorMakerOperator;
         DeploymentOperator mockDcOps = supplier.deploymentOperations;
         PodDisruptionBudgetOperator mockPdbOps = supplier.podDisruptionBudgetOperator;
         ConfigMapOperator mockCmOps = supplier.configMapOperations;
@@ -394,8 +395,6 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         KafkaMirrorMakerProducerSpec producer = new KafkaMirrorMakerProducerSpecBuilder()
                 .withBootstrapServers(producerBootstrapServers)
                 .build();
-        Map<String, Object> metricsCm = new HashMap<>();
-        metricsCm.put("foo", "bar");
         KafkaMirrorMaker kmm = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, kmmName, image, producer, consumer, include);
         KafkaMirrorMakerCluster mirror = KafkaMirrorMakerCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kmm, VERSIONS, SHARED_ENV_PROVIDER);
         kmm.getSpec().setImage("some/different:image"); // Change the image to generate some diff
@@ -459,8 +458,6 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         KafkaMirrorMakerProducerSpec producer = new KafkaMirrorMakerProducerSpecBuilder()
                 .withBootstrapServers(producerBootstrapServers)
                 .build();
-        Map<String, Object> metricsCm = new HashMap<>();
-        metricsCm.put("foo", "bar");
         KafkaMirrorMaker kmm = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, kmmName, image, producer, consumer, include);
         KafkaMirrorMakerCluster mirror = KafkaMirrorMakerCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kmm, VERSIONS, SHARED_ENV_PROVIDER);
         kmm.getSpec().setReplicas(scaleTo); // Change replicas to create ScaleUp
@@ -518,8 +515,6 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         KafkaMirrorMakerProducerSpec producer = new KafkaMirrorMakerProducerSpecBuilder()
                 .withBootstrapServers(producerBootstrapServers)
                 .build();
-        Map<String, Object> metricsCm = new HashMap<>();
-        metricsCm.put("foo", "bar");
         KafkaMirrorMaker kmm = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, kmmName, image, producer, consumer, include);
         KafkaMirrorMakerCluster mirror = KafkaMirrorMakerCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kmm, VERSIONS, SHARED_ENV_PROVIDER);
         kmm.getSpec().setReplicas(scaleTo); // Change replicas to create ScaleDown
@@ -560,7 +555,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
     @Test
     public void testReconcile(VertxTestContext context) {
         ResourceOperatorSupplier supplier = ResourceUtils.supplierWithMocks(true);
-        CrdOperator mockMirrorOps = supplier.mirrorMakerOperator;
+        CrdOperator<KubernetesClient, KafkaMirrorMaker, KafkaMirrorMakerList> mockMirrorOps = supplier.mirrorMakerOperator;
         DeploymentOperator mockDcOps = supplier.deploymentOperations;
         SecretOperator mockSecretOps = supplier.secretOperations;
 
@@ -574,8 +569,6 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         KafkaMirrorMakerProducerSpec producer = new KafkaMirrorMakerProducerSpecBuilder()
                 .withBootstrapServers(producerBootstrapServers)
                 .build();
-        Map<String, Object> metricsCm = new HashMap<>();
-        metricsCm.put("foo", "bar");
         KafkaMirrorMaker foo = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, "foo", image, producer, consumer, include);
         KafkaMirrorMaker bar = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, "bar", image, producer, consumer, include);
 
@@ -630,7 +623,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
     @Test
     public void testCreateClusterStatusNotReady(VertxTestContext context) {
         ResourceOperatorSupplier supplier = ResourceUtils.supplierWithMocks(true);
-        CrdOperator mockMirrorOps = supplier.mirrorMakerOperator;
+        CrdOperator<KubernetesClient, KafkaMirrorMaker, KafkaMirrorMakerList> mockMirrorOps = supplier.mirrorMakerOperator;
         DeploymentOperator mockDcOps = supplier.deploymentOperations;
         PodDisruptionBudgetOperator mockPdbOps = supplier.podDisruptionBudgetOperator;
         ConfigMapOperator mockCmOps = supplier.configMapOperations;
@@ -646,8 +639,6 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
         KafkaMirrorMakerProducerSpec producer = new KafkaMirrorMakerProducerSpecBuilder()
                 .withBootstrapServers(producerBootstrapServers)
                 .build();
-        Map<String, Object> metricsCm = new HashMap<>();
-        metricsCm.put("foo", "bar");
         KafkaMirrorMaker kmm = ResourceUtils.createKafkaMirrorMaker(kmmNamespace, kmmName, image, producer, consumer, include);
 
         when(mockMirrorOps.get(kmmNamespace, kmmName)).thenReturn(kmm);
@@ -687,7 +678,7 @@ public class KafkaMirrorMakerAssemblyOperatorTest {
     @Test
     public void testCreateOrUpdateZeroReplica(VertxTestContext context) {
         ResourceOperatorSupplier supplier = ResourceUtils.supplierWithMocks(true);
-        CrdOperator mockMirrorOps = supplier.mirrorMakerOperator;
+        CrdOperator<KubernetesClient, KafkaMirrorMaker, KafkaMirrorMakerList> mockMirrorOps = supplier.mirrorMakerOperator;
         DeploymentOperator mockDcOps = supplier.deploymentOperations;
         PodDisruptionBudgetOperator mockPdbOps = supplier.podDisruptionBudgetOperator;
         ConfigMapOperator mockCmOps = supplier.configMapOperations;

@@ -6,7 +6,7 @@ package io.strimzi.systemtest.operators;
 
 import io.fabric8.kubernetes.api.model.rbac.ClusterRole;
 import io.strimzi.systemtest.AbstractST;
-import io.strimzi.systemtest.Constants;
+import io.strimzi.systemtest.TestConstants;
 import io.strimzi.systemtest.Environment;
 import io.strimzi.systemtest.enums.ClusterOperatorRBACType;
 import io.strimzi.systemtest.annotations.IsolatedTest;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static io.strimzi.systemtest.Constants.REGRESSION;
+import static io.strimzi.systemtest.TestConstants.REGRESSION;
 import static io.strimzi.test.k8s.KubeClusterResource.kubeClient;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -40,20 +40,20 @@ class NamespaceRbacScopeOperatorST extends AbstractST {
 
         this.clusterOperator = this.clusterOperator.defaultInstallation(extensionContext)
             .withClusterOperatorRBACType(ClusterOperatorRBACType.NAMESPACE)
-            .withWatchingNamespaces(Constants.TEST_SUITE_NAMESPACE)
-            .withBindingsNamespaces(Arrays.asList(Constants.CO_NAMESPACE, Constants.TEST_SUITE_NAMESPACE))
+            .withWatchingNamespaces(Environment.TEST_SUITE_NAMESPACE)
+            .withBindingsNamespaces(Arrays.asList(TestConstants.CO_NAMESPACE, Environment.TEST_SUITE_NAMESPACE))
             .createInstallation()
             .runInstallation();
 
         resourceManager.createResourceWithWait(extensionContext, KafkaTemplates.kafkaEphemeral(clusterName, 3, 3)
             .editMetadata()
                 .addToLabels("app", "strimzi")
-                .withNamespace(Constants.TEST_SUITE_NAMESPACE)
+                .withNamespace(Environment.TEST_SUITE_NAMESPACE)
             .endMetadata()
             .build());
 
         // Wait for Kafka to be Ready to ensure all potentially erroneous ClusterRole applications have happened
-        KafkaUtils.waitForKafkaReady(Constants.TEST_SUITE_NAMESPACE, clusterName);
+        KafkaUtils.waitForKafkaReady(Environment.TEST_SUITE_NAMESPACE, clusterName);
 
         // Assert that no ClusterRoles are present on the server that have app strimzi
         // Naturally returns false positives if another Strimzi operator has been installed

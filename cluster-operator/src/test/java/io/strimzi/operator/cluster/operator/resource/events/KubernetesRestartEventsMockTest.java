@@ -121,7 +121,8 @@ public class KubernetesRestartEventsMockTest {
             VERSIONS.defaultVersion(),
             VERSIONS.defaultVersion(),
             VERSIONS.defaultVersion().protocolVersion(),
-            VERSIONS.defaultVersion().messageVersion()
+            VERSIONS.defaultVersion().messageVersion(),
+            VERSIONS.defaultVersion().metadataVersion()
     );
 
     private final MockCertManager mockCertManager = new MockCertManager();
@@ -346,7 +347,7 @@ public class KubernetesRestartEventsMockTest {
 
     @Test
     void testEventEmittedWhenConfigChangeRequiresRestart(Vertx vertx, VertxTestContext context) {
-        // Modify mccked configs call to return a new property to trigger a reconfiguration reconciliation that requires a restart
+        // Modify mocked configs call to return a new property to trigger a reconfiguration reconciliation that requires a restart
         Admin adminClient = withChangedBrokerConf(ResourceUtils.adminClientProvider().createAdminClient(null, null, null, null));
         ResourceOperatorSupplier supplierWithModifiedAdmin = supplierWithAdmin(vertx, () -> adminClient);
 

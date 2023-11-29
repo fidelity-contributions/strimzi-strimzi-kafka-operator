@@ -4,7 +4,7 @@
  */
 package io.strimzi.systemtest.olm;
 
-import io.strimzi.systemtest.Constants;
+import io.strimzi.systemtest.Environment;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -13,13 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-import static io.strimzi.systemtest.Constants.BRIDGE;
-import static io.strimzi.systemtest.Constants.CONNECT;
-import static io.strimzi.systemtest.Constants.CRUISE_CONTROL;
-import static io.strimzi.systemtest.Constants.MIRROR_MAKER;
-import static io.strimzi.systemtest.Constants.MIRROR_MAKER2;
-import static io.strimzi.systemtest.Constants.OLM;
-import static io.strimzi.systemtest.Constants.WATCH_ALL_NAMESPACES;
+import static io.strimzi.systemtest.TestConstants.BRIDGE;
+import static io.strimzi.systemtest.TestConstants.CONNECT;
+import static io.strimzi.systemtest.TestConstants.CRUISE_CONTROL;
+import static io.strimzi.systemtest.TestConstants.MIRROR_MAKER;
+import static io.strimzi.systemtest.TestConstants.MIRROR_MAKER2;
+import static io.strimzi.systemtest.TestConstants.OLM;
+import static io.strimzi.systemtest.TestConstants.WATCH_ALL_NAMESPACES;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Tag(OLM)
@@ -88,6 +88,6 @@ public class OlmAllNamespaceST extends OlmAbstractST {
             // run always OLM installation
             .runOlmInstallation();
 
-        cluster.setNamespace(Constants.TEST_SUITE_NAMESPACE);
+        cluster.setNamespace(Environment.TEST_SUITE_NAMESPACE);
     }
 }

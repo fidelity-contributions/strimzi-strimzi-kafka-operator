@@ -107,7 +107,7 @@ import static io.strimzi.operator.common.Annotations.ANNO_STRIMZI_IO_REBALANCE_A
  *
  *     The user can stop an ongoing rebalance by annotating the custom resource with {@code strimzi.io/rebalance=stop}
  *     when it is in the {@code Rebalancing} state. The operator then moves to the {@code Stopped} state. The ongoing
- *     partition reassignement will complete and further reassignements will be cancelled. The user can request a new
+ *     partition reassignment will complete and further reassignments will be cancelled. The user can request a new
  *     proposal by applying the {@code strimzi.io/rebalance=refresh} annotation on the custom resource.
  *
  *     Finally, when a proposal is ready but the user has not approved it right after the computation, the proposal may
@@ -437,18 +437,17 @@ public class KafkaRebalanceAssemblyOperator
                                                 kafkaRebalance.getMetadata().getName(), desiredStatusAndMap.getLoadMap())
                                                 .compose(i -> updateStatus(reconciliation, currentKafkaRebalance, desiredStatusAndMap.getStatus(), null))
                                                 .compose(updatedKafkaRebalance -> {
-                                                    String message = "";
                                                     if (currentKafkaRebalance.getStatus() != null
                                                             && updatedKafkaRebalance.getStatus() != null
                                                             && !rebalanceStateConditionType(currentKafkaRebalance.getStatus()).equals(rebalanceStateConditionType(updatedKafkaRebalance.getStatus()))) {
-                                                        message = "KafkaRebalance state is now updated to [{}]";
-                                                    }
-                                                    if (rawRebalanceAnnotation(updatedKafkaRebalance) != null) {
-                                                        LOGGER.infoCr(reconciliation, message + " with annotation {}={} applied on the KafkaRebalance resource",
-                                                                rebalanceStateConditionType(updatedKafkaRebalance.getStatus()),
+                                                        String message = "KafkaRebalance state is now updated to [{}]";
+
+                                                        if (rawRebalanceAnnotation(updatedKafkaRebalance) != null) {
+                                                            message = message + " with annotation {}={} applied on the KafkaRebalance resource";
+                                                        }
+                                                        LOGGER.infoCr(reconciliation, message, rebalanceStateConditionType(updatedKafkaRebalance.getStatus()),
                                                                 ANNO_STRIMZI_IO_REBALANCE,
-                                                                rawRebalanceAnnotation(updatedKafkaRebalance)
-                                                        );
+                                                                rawRebalanceAnnotation(updatedKafkaRebalance));
                                                     }
                                                     if (hasRebalanceAnnotation(updatedKafkaRebalance)) {
                                                         if (currentState != KafkaRebalanceState.ReconciliationPaused && rebalanceAnnotation != KafkaRebalanceAnnotation.none && !currentState.isValidateAnnotation(rebalanceAnnotation)) {
@@ -508,7 +507,7 @@ public class KafkaRebalanceAssemblyOperator
             case ProposalReady:
                 return onProposalReady(reconciliation, host, apiClient, kafkaRebalance, rebalanceAnnotation, rebalanceOptionsBuilder);
             case Rebalancing:
-                return onRebalancing(reconciliation, host, apiClient, kafkaRebalance, rebalanceAnnotation);
+                return onRebalancing(reconciliation, host, apiClient, kafkaRebalance, rebalanceAnnotation, rebalanceOptionsBuilder);
             case Stopped:
                 return onStop(reconciliation, host, apiClient, kafkaRebalance, rebalanceAnnotation, rebalanceOptionsBuilder);
             case Ready:
@@ -587,7 +586,7 @@ public class KafkaRebalanceAssemblyOperator
 
     /**
      * Converts the supplied before and after broker load arrays into a map linking from broker ID integer to a map linking
-     * from load parameter to an array of [before, after, difference]. The load paramters included in the map are dictated
+     * from load parameter to an array of [before, after, difference]. The load parameters included in the map are dictated
      * by the values in he {@link CruiseControlLoadParameters} enum.
      *
      * @param brokerLoadBeforeArray The JSONArray of broker load JSONObjects, for before the optimization proposal is applied,
@@ -797,7 +796,7 @@ public class KafkaRebalanceAssemblyOperator
 
     /**
      * This method handles the transition from {@code ReconciliationPaused} state.
-     * When the reconciliatiom is unpaused {@link KafkaRebalance} , it calls the Cruise Control API for requesting a rebalance proposal.
+     * When the reconciliation is unpaused {@link KafkaRebalance} , it calls the Cruise Control API for requesting a rebalance proposal.
      * If the proposal is immediately ready, the next state is {@code ProposalReady}.
      * If the proposal is not ready yet and Cruise Control is still processing it, the next state is {@code PendingProposal}.
      *
@@ -850,7 +849,11 @@ public class KafkaRebalanceAssemblyOperator
                             // Check resource is in the right state as previous execution might have set the status and completed the future
                             // Safety check as timer might be called again (from a delayed timer firing)
                             if (state(currentKafkaRebalance) == KafkaRebalanceState.PendingProposal) {
-                                if (rebalanceAnnotation(currentKafkaRebalance) == KafkaRebalanceAnnotation.stop) {
+                                if (rebalanceAnnotation(currentKafkaRebalance) == KafkaRebalanceAnnotation.refresh) {
+                                    LOGGER.debugCr(reconciliation, "Requesting a new proposal since refresh annotation is applied on the KafkaRebalance resource");
+                                    vertx.cancelTimer(t);
+                                    requestRebalance(reconciliation, host, apiClient, currentKafkaRebalance, true, rebalanceOptionsBuilder).onSuccess(p::complete);
+                                } else if (rebalanceAnnotation(currentKafkaRebalance) == KafkaRebalanceAnnotation.stop) {
                                     LOGGER.debugCr(reconciliation, "Stopping current Cruise Control proposal request timer");
                                     vertx.cancelTimer(t);
                                     p.complete(buildRebalanceStatus(null, KafkaRebalanceState.Stopped, StatusUtils.validate(reconciliation, currentKafkaRebalance)));
@@ -906,7 +909,7 @@ public class KafkaRebalanceAssemblyOperator
      * This method handles the transition from {@code ProposalReady} state.
      * It is related to the value that the user apply to the strimzi.io/rebalance annotation.
      * If the strimzi.io/rebalance annotation is set to 'approve', it calls the Cruise Control API for executing the proposed rebalance.
-     * If the strimzi.io/rebalance annotation is set to 'refresh', it calls the Cruise Control API for for requesting/refreshing the ready rebalance proposal.
+     * If the strimzi.io/rebalance annotation is set to 'refresh', it calls the Cruise Control API for requesting/refreshing the ready rebalance proposal.
      * If the rebalance is immediately complete, the next state is {@code Ready}.
      * If the rebalance is not finished yet as Cruise Control is still processing it (the usual case), the next state is {@code Rebalancing}.
      * If the user sets any other value for the strimzi.io/rebalance annotation, it is ignored.
@@ -968,7 +971,8 @@ public class KafkaRebalanceAssemblyOperator
     private Future<MapAndStatus<ConfigMap, KafkaRebalanceStatus>> onRebalancing(Reconciliation reconciliation,
                                                                                 String host, CruiseControlApi apiClient,
                                                                                 KafkaRebalance kafkaRebalance,
-                                                                                KafkaRebalanceAnnotation rebalanceAnnotation) {
+                                                                                KafkaRebalanceAnnotation rebalanceAnnotation,
+                                                                                AbstractRebalanceOptions.AbstractRebalanceOptionsBuilder<?, ?> rebalanceOptionsBuilder) {
         Promise<MapAndStatus<ConfigMap, KafkaRebalanceStatus>> p = Promise.promise();
         if (rebalanceAnnotation == KafkaRebalanceAnnotation.none) {
             LOGGER.infoCr(reconciliation, "Starting Cruise Control rebalance user task status timer");
@@ -996,6 +1000,17 @@ public class KafkaRebalanceAssemblyOperator
                                             LOGGER.errorCr(reconciliation, "Cruise Control stopping execution failed", e.getCause());
                                             p.fail(e.getCause());
                                         });
+                                } else if (rebalanceAnnotation(currentKafkaRebalance) == KafkaRebalanceAnnotation.refresh) {
+                                    LOGGER.debugCr(reconciliation, "Stopping current Cruise Control rebalance user task since refresh annotation is applied on the KafkaRebalance resource and requesting a new proposal");
+                                    vertx.cancelTimer(t);
+                                    apiClient.stopExecution(host, CruiseControl.REST_API_PORT)
+                                            .onSuccess(r -> {
+                                                requestRebalance(reconciliation, host, apiClient, currentKafkaRebalance, true, rebalanceOptionsBuilder).onSuccess(p::complete);
+                                            })
+                                            .onFailure(e -> {
+                                                LOGGER.errorCr(reconciliation, "Cruise Control stopping execution failed", e.getCause());
+                                                p.fail(e.getCause());
+                                            });
                                 } else {
                                     LOGGER.infoCr(reconciliation, "Getting Cruise Control rebalance user task status");
                                     Set<Condition> conditions = StatusUtils.validate(reconciliation, kafkaRebalance);
@@ -1143,6 +1158,23 @@ public class KafkaRebalanceAssemblyOperator
         if (kafkaRebalance == null) {
             LOGGER.infoCr(reconciliation, "Rebalance resource deleted");
             return Future.succeededFuture();
+        }
+
+        if (kafkaRebalance.getStatus() != null
+                && kafkaRebalance.getStatus().getObservedGeneration() != kafkaRebalance.getMetadata().getGeneration()) {
+
+            KafkaRebalanceBuilder patchedKafkaRebalance = new KafkaRebalanceBuilder(kafkaRebalance);
+
+            patchedKafkaRebalance
+                    .editMetadata()
+                         .addToAnnotations(Map.of(ANNO_STRIMZI_IO_REBALANCE, KafkaRebalanceAnnotation.refresh.toString()))
+                    .endMetadata()
+                    .editStatus()
+                         .withObservedGeneration(kafkaRebalance.getMetadata().getGeneration())
+                    .endStatus();
+
+            kafkaRebalanceOperator.patchAsync(reconciliation, patchedKafkaRebalance.build()).onComplete(
+                    r -> LOGGER.debugCr(reconciliation, "The KafkaRebalance resource is updated with refresh annotation"));
         }
 
         String clusterName = kafkaRebalance.getMetadata().getLabels() == null ? null : kafkaRebalance.getMetadata().getLabels().get(Labels.STRIMZI_CLUSTER_LABEL);
